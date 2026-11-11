@@ -1,8 +1,5 @@
+import { handleContent } from '../../server/handlers';
 import type { Env } from '../lib/env';
+import { d1Store } from '../lib/d1Store';
 
-/** Latest published checklist rules. 204 = nothing published yet (the app uses its bundled rules). */
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  const row = await env.DB.prepare('SELECT content FROM content_versions ORDER BY version DESC LIMIT 1').first<{ content: string }>();
-  if (!row) return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
-  return new Response(row.content, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
-};
+export const onRequestGet: PagesFunction<Env> = ({ env }) => handleContent(d1Store(env.DB));

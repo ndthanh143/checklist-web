@@ -17,6 +17,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public login?: 'password',
   ) {
     super(message);
   }
@@ -31,13 +32,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const isJson = res.headers.get('content-type')?.includes('application/json');
   if (!isJson) throw new ApiError('Server not available', 0);
-  const body = (await res.json()) as T & { error?: string };
-  if (!res.ok) throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status);
+  const body = (await res.json()) as T & { error?: string; login?: 'password' };
+  if (!res.ok) throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, body.login);
   return body;
 }
 
 export const adminApi = {
   me: () => call<{ email: string }>('/api/admin/me'),
+  login: (name: string, password: string) => call<{ name: string }>('/api/admin-login', { method: 'POST', body: JSON.stringify({ name, password }) }),
   getDraft: () => call<DraftResponse | { draft: null }>('/api/admin/draft'),
   saveDraft: (content: ChecklistContent) => call<{ updatedAt: string }>('/api/admin/draft', { method: 'PUT', body: JSON.stringify({ content }) }),
   discardDraft: () => call<{ ok: true }>('/api/admin/draft', { method: 'DELETE' }),

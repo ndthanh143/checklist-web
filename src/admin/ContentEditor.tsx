@@ -25,6 +25,7 @@ export default function ContentEditor() {
   const [history, setHistory] = useState<VersionInfo[]>([]);
   const [note, setNote] = useState('');
   const [authError, setAuthError] = useState('');
+  const [needLogin, setNeedLogin] = useState(false);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -48,7 +49,9 @@ export default function ContentEditor() {
         } else setContent(published ?? defaultContent);
         loadHistory();
       } catch (e) {
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        if (e instanceof ApiError && e.login === 'password') {
+          setNeedLogin(true);
+        } else if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
           setAuthError(e.message);
         } else {
           setOnline(false);
@@ -77,6 +80,7 @@ export default function ContentEditor() {
   const validation = useMemo(() => (content ? contentSchema.safeParse(content) : null), [content]);
   const errors = validation && !validation.success ? validation.error.issues.map((i) => `${i.path.join(' › ') || 'Content'}: ${i.message}`) : [];
 
+  if (needLogin) return <AdminLogin />;
   if (authError) {
     return (
       <main className="page page-narrow">
@@ -307,5 +311,44 @@ export default function ContentEditor() {
         </main>
       )}
     </div>
+  );
+}
+
+function AdminLogin() {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await adminApi.login(name.trim(), password);
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not log in');
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="page page-narrow">
+      <form className="card card-pad stack" style={{ maxWidth: 440, margin: '40px auto' }} onSubmit={submit}>
+        <img src="/logos/lawmans.png" alt="Lawmans Frame & Truss" style={{ height: 38, alignSelf: 'flex-start' }} />
+        <h1>Content editor</h1>
+        <p className="muted">For staff who update the checklist rules. Your name is saved in the publish history.</p>
+        <div className="field">
+          <label className="label" htmlFor="adm-name">Your name</label>
+          <input id="adm-name" className="input" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="adm-pass">Content editor password</label>
+          <input id="adm-pass" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
+        {error && <div className="problems">{error}</div>}
+        <button className="btn primary big" disabled={busy || !name.trim() || !password}>Log in</button>
+        <a className="link-btn" href="/">Back to the checklist</a>
+      </form>
+    </main>
   );
 }

@@ -61,6 +61,25 @@ npm run typecheck      # TypeScript cho frontend và functions
 
 Lần đầu chạy e2e: `npx playwright install chromium`.
 
+## Deploy lên Vercel
+
+Vercel tự build bằng `vercel.json` (Vite → `dist/`). Backend nằm ở `middleware.ts` (chặn mọi trang khi chưa login) và `api/*.ts` (Edge Functions), dùng chung code trong `server/`.
+
+1. **Storage → Create Database → Neon (Postgres)**, rồi connect vào project. Vercel tự thêm `DATABASE_URL`. Bảng được tạo tự động lần đầu dùng.
+2. **Settings → Environment Variables** (chọn Production + Preview):
+
+   | Biến | Giá trị |
+   |---|---|
+   | `SITE_PASSWORD` | `MitekVietnam` |
+   | `SESSION_SECRET` | chuỗi ngẫu nhiên dài (`openssl rand -hex 32`) |
+   | `ADMIN_PASSWORD` | mật khẩu riêng cho Content editor (`/admin`) |
+   | `ADMIN_EMAILS` | (tuỳ chọn) danh sách tên được phép sửa rule, cách nhau bằng dấu phẩy |
+
+3. **Redeploy** (Deployments → ⋯ → Redeploy) để nhận biến mới.
+4. Kiểm tra: mở site trong cửa sổ ẩn danh → phải thấy trang **Log in**. Vào `/admin` → đăng nhập bằng tên + `ADMIN_PASSWORD` → tab **Publish & history** → publish version 1.
+
+Nếu vào site mà không bị hỏi mật khẩu: middleware chưa chạy — kiểm tra file `middleware.ts` có trong commit và log của deployment.
+
 ## Deploy lên Cloudflare Pages
 
 1. Tạo database D1 và chép `database_id` vào `wrangler.toml`:

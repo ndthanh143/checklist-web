@@ -3,3 +3,5 @@ SITE_PASSWORD=MitekVietnam
 SESSION_SECRET=change-me-to-a-long-random-string
 # Local only: lets you use the Content editor on localhost without Cloudflare Access.
 DEV_ADMIN_EMAIL=you@example.com
+# Optional: use a password login for the Content editor instead (as on Vercel)
+# ADMIN_PASSWORD=change-me

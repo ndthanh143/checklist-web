@@ -12,6 +12,6 @@
     "noEmit": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["./**/*.ts", "../src/content/**/*.ts", "../src/job/types.ts"],
-  "exclude": ["./**/*.test.ts"]
+  "include": ["./**/*.ts", "../server/**/*.ts", "../src/content/**/*.ts", "../src/job/types.ts"],
+  "exclude": ["./**/*.test.ts", "../server/**/*.test.ts", "../server/neonStore.ts", "../server/vercelEnv.ts", "../server/vercelStore.ts"]
 }
