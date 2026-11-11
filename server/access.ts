@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { ServerEnv } from './http';
-import { ADMIN_COOKIE, readCookie, verifyToken } from './session';
+import type { ServerEnv } from './http.js';
+import { ADMIN_COOKIE, readCookie, verifyToken } from './session.js';
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 

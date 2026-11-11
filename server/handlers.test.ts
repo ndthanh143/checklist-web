@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { defaultContent } from '../src/content/defaultContent';
-import { gate } from './gate';
-import { handleAdminLogin, handleLogin, handleLogout } from './auth';
-import { handleAdmin, handleContent } from './handlers';
-import type { ServerEnv } from './http';
-import { memoryStore } from './store';
+import { defaultContent } from '../src/content/defaultContent.js';
+import { gate } from './gate.js';
+import { handleAdminLogin, handleLogin, handleLogout } from './auth.js';
+import { handleAdmin, handleContent } from './handlers.js';
+import type { ServerEnv } from './http.js';
+import { memoryStore } from './store.js';
 
 const env: ServerEnv = { SITE_PASSWORD: 'MitekVietnam', SESSION_SECRET: 'test-secret', ADMIN_PASSWORD: 'editor-pass' };
 const B = 'https://checklist.example.com';

@@ -10,3 +10,4 @@ playwright-report
 *.pdf
 *.xlsx
 *.docx
+.vercel

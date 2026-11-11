@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import type { DraftRow, RulesStore, VersionRow } from './store';
+import type { DraftRow, RulesStore, VersionRow } from './store.js';
 
 // Postgres (Neon) store for Vercel. Tables are created on first use, so no migration step is needed.
 

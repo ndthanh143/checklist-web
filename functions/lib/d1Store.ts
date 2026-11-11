@@ -1,4 +1,4 @@
-import type { DraftRow, RulesStore, VersionRow } from '../../server/store';
+import type { DraftRow, RulesStore, VersionRow } from '../../server/store.js';
 
 /** Cloudflare D1 store (tables from migrations/0001_init.sql). */
 export function d1Store(db: D1Database): RulesStore {

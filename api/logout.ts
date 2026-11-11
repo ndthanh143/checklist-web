@@ -1,7 +1,5 @@
-import { handleLogout } from '../server/auth';
+import { handleLogout } from '../server/auth.js';
 
-export const config = { runtime: 'edge' };
-
-export default function handler(): Response {
+export function GET(): Response {
   return handleLogout();
 }

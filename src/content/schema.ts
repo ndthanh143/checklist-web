@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { CONDITION_KEYS, FLOOR_KINDS, HOUSE_TYPES, OPENING_TYPES, STAGE_IDS, SUGGEST_KEYS, WIDGET_KEYS } from './types';
-import type { ChecklistContent } from './types';
-import { STATUSES } from '../job/types';
-import type { JobData } from '../job/types';
+import { CONDITION_KEYS, FLOOR_KINDS, HOUSE_TYPES, OPENING_TYPES, STAGE_IDS, SUGGEST_KEYS, WIDGET_KEYS } from './types.js';
+import type { ChecklistContent } from './types.js';
+import { STATUSES } from '../job/types.js';
+import type { JobData } from '../job/types.js';
 
 // ─── Content (rules) ───
 

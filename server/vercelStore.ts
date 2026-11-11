@@ -1,5 +1,5 @@
-import { neonStore } from './neonStore';
-import type { RulesStore } from './store';
+import { neonStore } from './neonStore.js';
+import type { RulesStore } from './store.js';
 
 declare const process: { env: Record<string, string | undefined> };
 

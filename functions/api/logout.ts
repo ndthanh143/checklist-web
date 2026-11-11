@@ -1,4 +1,4 @@
-import { handleLogout } from '../../server/auth';
-import type { Env } from '../lib/env';
+import { handleLogout } from '../../server/auth.js';
+import type { Env } from '../lib/env.js';
 
 export const onRequestGet: PagesFunction<Env> = () => handleLogout();

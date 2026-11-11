@@ -1,4 +1,4 @@
-import type { ServerEnv } from './http';
+import type { ServerEnv } from './http.js';
 
 declare const process: { env: Record<string, string | undefined> };
 

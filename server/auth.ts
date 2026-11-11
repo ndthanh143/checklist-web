@@ -1,5 +1,5 @@
-import { json, type ServerEnv } from './http';
-import { ADMIN_COOKIE, clearSessionCookie, cookie, createSessionToken, safeEqual, sessionCookie, SESSION_HOURS, signToken } from './session';
+import { json, type ServerEnv } from './http.js';
+import { ADMIN_COOKIE, clearSessionCookie, cookie, createSessionToken, safeEqual, sessionCookie, SESSION_HOURS, signToken } from './session.js';
 
 // Login / logout handlers (small: no database, no schema), shared by Cloudflare and Vercel.
 

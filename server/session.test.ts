@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSessionToken, readCookie, safeEqual, verifySessionToken } from './session';
+import { createSessionToken, readCookie, safeEqual, verifySessionToken } from './session.js';
 
 describe('session cookie', () => {
   it('accepts its own token and rejects a different secret', async () => {

@@ -1,5 +1,5 @@
-import { json, type ServerEnv } from './http';
-import { readCookie, SESSION_COOKIE, verifySessionToken } from './session';
+import { json, type ServerEnv } from './http.js';
+import { readCookie, SESSION_COOKIE, verifySessionToken } from './session.js';
 
 // Everything except the login page needs a valid session cookie, including the app's
 // JavaScript and the checklist rules, so nothing is readable before logging in.

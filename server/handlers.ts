@@ -1,7 +1,7 @@
-import { contentSchema } from '../src/content/schema';
-import { adminIdentity, adminLoginMode } from './access';
-import { json, type ServerEnv } from './http';
-import type { RulesStore, VersionRow } from './store';
+import { contentSchema } from '../src/content/schema.js';
+import { adminIdentity, adminLoginMode } from './access.js';
+import { json, type ServerEnv } from './http.js';
+import type { RulesStore, VersionRow } from './store.js';
 
 // Rules API handlers shared by Cloudflare Pages Functions (functions/) and Vercel (api/).
 
