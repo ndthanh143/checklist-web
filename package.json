@@ -1,0 +1,40 @@
+{
+  "name": "lawmans-smart-checklist",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc -p tsconfig.json && tsc -p functions/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "cf:dev": "vite build && wrangler pages dev dist",
+    "cf:migrate:local": "wrangler d1 migrations apply lawmans-checklist --local",
+    "cf:deploy": "vite build && wrangler pages deploy dist",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.72.0",
+    "pdfmake": "^0.3.14",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261110.1",
+    "@playwright/test": "^1.65.0",
+    "@types/pdfmake": "^0.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "jose": "^6.2.17",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.0"
+  }
+}

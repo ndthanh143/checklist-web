@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/logos/lawmans-icon.png" />
+    <title>Log in — Lawmans Smart Checklist</title>
+    <style>
+      :root { --blue: #0033a0; --red: #790000; --charcoal: #232323; --line: #d5dae1; --panel: #f3f5f7; --block: #c43d3d; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--panel); font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; color: var(--charcoal); padding: 16px; }
+      .card { width: min(420px, 100%); background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: 10px; padding: 28px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
+      .logos { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+      .logos .lawmans { height: 40px; }
+      .logos .mitek { height: 22px; }
+      .logos span { width: 1px; height: 30px; background: var(--line); }
+      h1 { font-size: 21px; margin: 0 0 4px; }
+      p { margin: 0 0 18px; color: #5b6470; font-size: 15px; }
+      label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+      input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid #b7bec8; border-radius: 6px; }
+      input:focus-visible, button:focus-visible { outline: 3px solid #7aa2ff; outline-offset: 2px; }
+      button { width: 100%; margin-top: 16px; font: inherit; font-size: 16px; font-weight: 700; padding: 11px; border: 0; border-radius: 8px; background: var(--blue); color: #fff; cursor: pointer; }
+      button:hover { background: #00267a; }
+      .error { display: none; margin-top: 12px; padding: 9px 12px; border-radius: 6px; background: #fbeaea; color: #7a1f1f; font-size: 14px; }
+      .error.show { display: block; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logos">
+        <img class="lawmans" src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
+        <span></span>
+        <img class="mitek" src="/logos/mitek.png" alt="MiTek" />
+      </div>
+      <h1>Smart Checklist</h1>
+      <p>Enter the team password to continue.</p>
+      <form method="post" action="/api/login">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+        <div id="error" class="error" role="alert">That password is not right. Please try again.</div>
+        <button type="submit">Log in</button>
+      </form>
+    </main>
+    <script>
+      if (new URLSearchParams(location.search).has('error')) document.getElementById('error').classList.add('show');
+    </script>
+  </body>
+</html>

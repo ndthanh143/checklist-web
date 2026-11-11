@@ -1,0 +1,12 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+test-results
+playwright-report
+*.local
+
+# Client source documents (kept local, not pushed)
+*.pdf
+*.xlsx
+*.docx

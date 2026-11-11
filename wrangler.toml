@@ -1,0 +1,19 @@
+# Cloudflare Pages project. See README.md → "Deploy".
+name = "lawmans-smart-checklist"
+compatibility_date = "2025-09-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lawmans-checklist"
+# Replace with the id printed by: npx wrangler d1 create lawmans-checklist
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Secrets (never commit them): set with `npx wrangler pages secret put NAME`
+#   SITE_PASSWORD   – shared login password (blueprint: MitekVietnam)
+#   SESSION_SECRET  – long random string used to sign the login cookie
+# Content editor access (Cloudflare Access application on /admin* and /api/admin*):
+#   ACCESS_TEAM_DOMAIN – e.g. yourteam.cloudflareaccess.com
+#   ACCESS_AUD         – the Access application's AUD tag
+#   ADMIN_EMAILS       – optional comma-separated allow-list of editor emails
