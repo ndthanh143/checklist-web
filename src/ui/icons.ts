@@ -32,4 +32,5 @@ export {
   X as IconClose,
   CircleCheckBig as IconSignOff,
   ListChecks as IconChecklist,
+  ScanEye as IconFocus,
 } from 'lucide-react';

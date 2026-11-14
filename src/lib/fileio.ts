@@ -126,7 +126,9 @@ export async function parse(bytes: ArrayBuffer): Promise<ParsedFile> {
   } catch {
     throw new FileFormatError('This file could not be read. It may be from a newer version of the app, or it was damaged.');
   }
-  const fingerprintOk = (await computeFingerprint(data, photos)) === data.fingerprint;
+  // Check the fingerprint against the file as written — fields added by newer app
+  // versions (filled with defaults while reading) must not look like a manual edit.
+  const fingerprintOk = (await computeFingerprint(raw as JobData, photos)) === data.fingerprint;
   return { data, photos, fingerprintOk };
 }
 

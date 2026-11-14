@@ -182,7 +182,11 @@ export async function readPhoto(file: File, maxSide = 1600): Promise<{ name: str
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(img.width * scale);
     canvas.height = Math.round(img.height * scale);
-    canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d')!;
+    // JPEG has no transparency: paint white first so transparent PNGs do not turn black.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     return { name: file.name, mime: 'image/jpeg', dataUrl: canvas.toDataURL('image/jpeg', 0.85) };
   } finally {
     URL.revokeObjectURL(url);

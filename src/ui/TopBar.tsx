@@ -25,16 +25,26 @@ function SaveState() {
   );
 }
 
+/** MiTek first (service provider), then Lawmans (client) — same height so they read as equals. */
+export function PartnerLogos({ className = '' }: { className?: string }) {
+  return (
+    <span className={`partners ${className}`}>
+      <img src="/logos/mitek.png" alt="MiTek" />
+      <span className="divider" />
+      <img src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
+    </span>
+  );
+}
+
 export function TopBar() {
   const { data, content, role, go, view, server } = useSession();
   const builder = data ? getBuilder(content, data.job.builderId) : undefined;
   return (
     <header className="topbar">
-      <button className="brand" onClick={() => go('home')} aria-label="Home">
-        <img className="lawmans" src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
-        <span className="divider" />
-        <img className="mitek" src="/logos/mitek.png" alt="MiTek" />
+      <button className="brand" onClick={() => go('home')} aria-label="Smart Check Wall — home">
+        <img className="app-logo" src="/logos/smart-check-wall-horizontal.png" alt="Smart Check Wall" />
       </button>
+      <PartnerLogos />
       {data && (
         <div className="job-chip">
           <span className="title">

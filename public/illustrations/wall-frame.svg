@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 330" role="img" aria-label="Timber wall frame with a window opening, checked">
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e9b678"/>
+      <stop offset="1" stop-color="#dca05c"/>
+    </linearGradient>
+    <linearGradient id="tv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9b678"/>
+      <stop offset="1" stop-color="#d89a55"/>
+    </linearGradient>
+  </defs>
+  <!-- ground -->
+  <ellipse cx="240" cy="306" rx="220" ry="12" fill="#ead8bf" opacity=".6"/>
+  <!-- roof truss outline behind -->
+  <path d="M30 70 L240 8 L450 70" fill="none" stroke="#c98b45" stroke-width="10" stroke-linejoin="round" opacity=".35"/>
+  <g stroke="#b9793a" stroke-width="1.5">
+    <!-- ribbon + top plate -->
+    <rect x="30" y="62" width="420" height="12" rx="2" fill="url(#t)"/>
+    <rect x="30" y="74" width="420" height="12" rx="2" fill="url(#t)"/>
+    <!-- bottom plate -->
+    <rect x="30" y="282" width="420" height="14" rx="2" fill="url(#t)"/>
+    <!-- common studs -->
+    <rect x="30" y="86" width="12" height="196" fill="url(#tv)"/>
+    <rect x="80" y="86" width="12" height="196" fill="url(#tv)"/>
+    <rect x="130" y="86" width="12" height="196" fill="url(#tv)"/>
+    <rect x="388" y="86" width="12" height="196" fill="url(#tv)"/>
+    <rect x="438" y="86" width="12" height="196" fill="url(#tv)"/>
+    <!-- jamb studs -->
+    <rect x="176" y="86" width="12" height="196" fill="url(#tv)"/>
+    <rect x="342" y="86" width="12" height="196" fill="url(#tv)"/>
+    <!-- lintel -->
+    <rect x="188" y="86" width="154" height="34" rx="2" fill="#cf8f4a"/>
+    <!-- prop studs -->
+    <rect x="188" y="120" width="10" height="162" fill="url(#tv)"/>
+    <rect x="332" y="120" width="10" height="162" fill="url(#tv)"/>
+    <!-- head trimmer + sill -->
+    <rect x="198" y="132" width="134" height="10" fill="url(#t)"/>
+    <rect x="198" y="222" width="134" height="10" fill="url(#t)"/>
+    <!-- overs + unders -->
+    <rect x="260" y="120" width="10" height="12" fill="url(#tv)"/>
+    <rect x="230" y="232" width="10" height="50" fill="url(#tv)"/>
+    <rect x="290" y="232" width="10" height="50" fill="url(#tv)"/>
+    <!-- noggings -->
+    <rect x="42" y="176" width="38" height="10" fill="url(#t)"/>
+    <rect x="92" y="186" width="38" height="10" fill="url(#t)"/>
+    <rect x="142" y="176" width="34" height="10" fill="url(#t)"/>
+    <rect x="354" y="186" width="34" height="10" fill="url(#t)"/>
+    <rect x="400" y="176" width="38" height="10" fill="url(#t)"/>
+  </g>
+  <!-- window glass -->
+  <rect x="200" y="144" width="130" height="76" fill="#dfeefa" stroke="#9cc3e6" stroke-width="2"/>
+  <path d="M265 144 V220" stroke="#9cc3e6" stroke-width="2"/>
+  <path d="M212 152 L236 176" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+  <!-- metal cross brace -->
+  <path d="M42 270 L130 92 M42 92 L130 270" stroke="#7b8794" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+  <!-- check badge -->
+  <circle cx="420" cy="40" r="30" fill="#ffffff" stroke="#1f7a32" stroke-width="4"/>
+  <path d="M404 41 L416 53 L438 29" fill="none" stroke="#1f7a32" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- label tag -->
+  <g transform="translate(64 112) rotate(-6)">
+    <rect width="54" height="24" rx="5" fill="#0033a0"/>
+    <text x="27" y="17" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">E1</text>
+  </g>
+</svg>

@@ -5,7 +5,13 @@ import { emptyConditions, newElevation, newOpening, newWall } from '../job/facto
 import type { Elevation, FieldValue, ItemState, JobData, JobInfo, Opening, Photo, ReviewEntry, Role, Status, Wall } from '../job/types';
 import { contentChanges, type ContentChanges } from '../lib/fileio';
 import { uid } from '../lib/hash';
-import { EMPTY_ITEM } from '../lib/rules';
+import { EMPTY_ITEM, internalLoadBearingLabels, listValue } from '../lib/rules';
+
+/** A photo may be used by a review entry and an item field at the same time. */
+function photoInUse(d: JobData, photoId: string): boolean {
+  if (d.review.entries.some((e) => e.photoIds.includes(photoId))) return true;
+  return Object.values(d.items).some((s) => Object.values(s.values).some((v) => Array.isArray(v) && v.some((x) => x === photoId)));
+}
 
 export type View = 'home' | 'wizard' | 'workspace' | 'summary' | 'guide';
 
@@ -48,10 +54,14 @@ interface Session {
   addElevation: (name: string) => void;
   updateElevation: (id: string, patch: Partial<Elevation>) => void;
   removeElevation: (id: string) => void;
-  addWall: (label: string, elevationId: string | null) => void;
+  /** Adds the walls that do not exist yet. Returns how many were added and which already existed. */
+  addWalls: (labels: string[], elevationId: string | null) => { added: number; existing: string[] };
+  setWallLabelDraft: (groupKey: string, text: string) => void;
+  addItemPhotos: (itemId: string, fieldId: string, photos: Photo[]) => void;
+  removeItemPhoto: (itemId: string, fieldId: string, photoId: string) => void;
   updateWall: (id: string, patch: Partial<Wall>) => void;
   removeWall: (id: string) => void;
-  addOpening: (label: string, wallId: string | null, internal: boolean) => void;
+  addOpening: (label: string, wallId: string | null, internal: boolean, type?: Opening['type']) => void;
   updateOpening: (id: string, patch: Partial<Opening>) => void;
   removeOpening: (id: string) => void;
   sendForReview: () => void;
@@ -63,6 +73,8 @@ interface Session {
   addEntry: (entry: Pick<ReviewEntry, 'itemId' | 'kind' | 'text'>, photos: Photo[]) => void;
   setEntryResolved: (entryId: string, resolved: boolean) => void;
   removeEntry: (entryId: string) => void;
+  /** Checker ticks a checker-focus point as verified (or clears it). */
+  setFocusCheck: (pointId: string, verified: boolean) => void;
   signOff: () => void;
   setRequiredChecks: (n: 1 | 2) => void;
 }
@@ -156,7 +168,44 @@ export const useSession = create<Session>((set, get) => {
         elevations: d.elevations.filter((e) => e.id !== id),
         walls: d.walls.map((w) => (w.elevationId === id ? { ...w, elevationId: null } : w)),
       })),
-    addWall: (label, elevationId) => edit((d) => ({ ...d, walls: [...d.walls, newWall(label, elevationId)] })),
+    addWalls: (labels, elevationId) => {
+      const { data, role } = get();
+      if (!data || role !== 'detailer') return { added: 0, existing: [] };
+      const have = new Set(data.walls.map((w) => w.label.trim().toUpperCase()));
+      const internalLb = new Set(internalLoadBearingLabels(data));
+      const existing: string[] = [];
+      const fresh: Wall[] = [];
+      for (const raw of labels) {
+        const label = raw.trim().toUpperCase();
+        if (!label) continue;
+        if (have.has(label)) {
+          existing.push(label);
+          continue;
+        }
+        have.add(label);
+        fresh.push(newWall(label, elevationId, elevationId !== null || internalLb.has(label)));
+      }
+      if (fresh.length) edit((d) => ({ ...d, walls: [...d.walls, ...fresh] }));
+      return { added: fresh.length, existing };
+    },
+    setWallLabelDraft: (groupKey, text) => edit((d) => ({ ...d, wallLabelDrafts: { ...d.wallLabelDrafts, [groupKey]: text } })),
+    addItemPhotos: (itemId, fieldId, photos) => {
+      const { data, role } = get();
+      if (!data || role !== 'detailer' || photos.length === 0) return;
+      const current = listValue(data.items[itemId]?.values[fieldId]);
+      set({
+        data: patchItem(data, itemId, { values: { ...(data.items[itemId]?.values ?? {}), [fieldId]: [...current, ...photos.map((p) => p.id)] } }),
+        photos: [...get().photos, ...photos],
+        ...touched(),
+      });
+    },
+    removeItemPhoto: (itemId, fieldId, photoId) => {
+      const { data, role, photos } = get();
+      if (!data || role !== 'detailer') return;
+      const current = listValue(data.items[itemId]?.values[fieldId]);
+      const next = patchItem(data, itemId, { values: { ...(data.items[itemId]?.values ?? {}), [fieldId]: current.filter((id) => id !== photoId) } });
+      set({ data: next, photos: photos.filter((p) => p.id !== photoId || photoInUse(next, photoId)), ...touched() });
+    },
     updateWall: (id, patch) => edit((d) => ({ ...d, walls: d.walls.map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
     removeWall: (id) =>
       edit((d) => ({
@@ -164,7 +213,11 @@ export const useSession = create<Session>((set, get) => {
         walls: d.walls.filter((w) => w.id !== id),
         openings: d.openings.map((o) => (o.wallId === id ? { ...o, wallId: null } : o)),
       })),
-    addOpening: (label, wallId, internal) => edit((d) => ({ ...d, openings: [...d.openings, newOpening(label, wallId, internal)] })),
+    addOpening: (label, wallId, internal, type) =>
+      edit((d) => {
+        const o = newOpening(label, wallId, internal);
+        return { ...d, openings: [...d.openings, type ? { ...o, type } : o] };
+      }),
     updateOpening: (id, patch) => edit((d) => ({ ...d, openings: d.openings.map((o) => (o.id === id ? { ...o, ...patch } : o)) })),
     removeOpening: (id) => edit((d) => ({ ...d, openings: d.openings.filter((o) => o.id !== id) })),
     sendForReview: () => edit((d) => ({ ...d, stage: 'review' })),
@@ -220,6 +273,16 @@ export const useSession = create<Session>((set, get) => {
         data: { ...data, review: { ...data.review, entries: data.review.entries.filter((e) => e.id !== entryId) } },
         photos: photos.filter((p) => !entry?.photoIds.includes(p.id)),
         ...touched(),
+      });
+    },
+    setFocusCheck: (pointId, verified) => {
+      const { role, reviewerName } = get();
+      if (role !== 'checker') return;
+      review((d) => {
+        const focusChecks = { ...d.review.focusChecks };
+        if (verified) focusChecks[pointId] = { by: reviewerName || 'Checker', at: now() };
+        else delete focusChecks[pointId];
+        return { ...d, review: { ...d.review, focusChecks } };
       });
     },
     signOff: () =>

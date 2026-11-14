@@ -29,6 +29,22 @@ export function Guide() {
         <li>Work through the 9 stages on the left, in order. Each item has status buttons, boxes for values, and a note.</li>
         <li>The red box on an item is the <b>builder rule</b>. Values marked “Suggested” are only suggestions — enter the sizes designed for this job and press “Use this” only if they match.</li>
         <li>“Common mistakes from client feedback” shows real problems the client found on past jobs.</li>
+        <li>
+          Some boxes are small tables — press <b>+ Add</b> for each extra row (for example several step-down areas, other plate sizes, beams or critical stud areas).
+        </li>
+        <li>
+          To attach a screenshot (bracing calculation, beam pockets), click the dashed box and press <b>Ctrl</b>+<b>V</b>, drop the picture on it, or choose a file.
+          Pictures are saved inside the .chck file and printed at the end of the PDF.
+        </li>
+        <li>
+          Wall Panels: type labels like “E1-E8” and press <b>Add walls</b>. The typed text is kept (also in the saved file), and pressing Add walls again only adds the
+          walls that are not in the table yet. External walls start as load-bearing (LB); internal walls start as non-load-bearing unless you listed them in “Identify
+          load-bearing walls”.
+        </li>
+        <li>
+          Openings: each opening shows the suggested lintel, trimmer, jamb and prop studs. Change the trimmer or the lintel choice when the job needs it, tick{' '}
+          <b>Under girder</b> to enter the critical stud from Autobeam, and choose the detailing method — the app reminds you which notes to add.
+        </li>
         <li>Press <b>Save</b>. The first time, choose where to save the <b>.chck</b> file. After that, Save updates the same file (Chrome and Edge). In other browsers, each Save downloads a new copy.</li>
       </ol>
 
@@ -60,6 +76,11 @@ export function Guide() {
       <ul>
         <li>The detailer opens <b>Summary</b> and presses <b>Send for review</b>. This saves a new “Review” .chck file to give to the checker.</li>
         <li>The checker opens that file and chooses “I am the checker”. The detailer’s inputs are locked. The checker adds <b>flags</b> (must be fixed), <b>comments</b> and <b>photos</b>, then saves.</li>
+        <li>
+          The Summary page starts with <b>Checker focus</b>: the key points to compare with the plans (builder, address, wall sizes and heights, openings and window
+          schedule, head heights, load-bearing walls, plate and stud sizes, lintels, posts, critical studs, shower, beams). The checker ticks each one{' '}
+          <b>Verified</b>. These items are also highlighted in the checklist.
+        </li>
         <li>The checker can download a <b>Draft PDF</b> at any time to review offline or print and mark up by hand.</li>
         <li>The detailer opens the review file, chooses “I am the detailer”, fixes each flag, writes a reply and saves it back to the checker.</li>
         <li>When no flags are open, the checker presses <b>Sign off</b>.</li>

@@ -11,7 +11,11 @@ export const STATUS_LABELS: Record<Status, string> = {
   blocked: 'Blocked',
 };
 
-export type FieldValue = string | string[];
+/** One row of a 'rows' field: column id → value. */
+export type RowValue = Record<string, string>;
+
+/** text/number/select/textarea → string · checks/photos (photo ids) → string[] · rows → RowValue[] */
+export type FieldValue = string | string[] | RowValue[];
 
 export interface ItemState {
   status: Status;
@@ -52,6 +56,17 @@ export interface Wall {
   height: string;
 }
 
+export const OPENING_POSITIONS = ['middle', 'dimension', 'corner90', 'corner70'] as const;
+export type OpeningPosition = (typeof OPENING_POSITIONS)[number];
+
+/** How the lintel is handled (#18). */
+export const LINTEL_MODES = ['designed', 'no-suitable', 'none'] as const;
+export type LintelMode = (typeof LINTEL_MODES)[number];
+
+/** Detailing methods (#18) — several can apply to one opening. */
+export const DETAILING_METHODS = ['header-raise', 'cut-ribbon', 'cut-top', 'trimmer-plus'] as const;
+export type DetailingMethod = (typeof DETAILING_METHODS)[number];
+
 export interface Opening {
   id: string;
   label: string;
@@ -60,7 +75,7 @@ export interface Opening {
   scheduleH: string;
   scheduleW: string;
   headHeight: string;
-  position: 'middle' | 'dimension';
+  position: OpeningPosition;
   dimension: string;
   side: 'left' | 'right' | '';
   hyneTimber: string;
@@ -68,6 +83,18 @@ export interface Opening {
   autobeamTimber: string;
   autobeamDeflection: string;
   note: string;
+  /** Trimmer chosen by the detailer ('' = use the suggested size). */
+  trimmer: string;
+  lintelMode: LintelMode;
+  methods: DetailingMethod[];
+  /** For the "+30 / +25 / +20 Trimmer" method. */
+  trimmerPlus: '' | '+30' | '+25' | '+20';
+  /** Wall carries a girder load → critical stud designed in Autobeam (#17). */
+  underGirder: boolean;
+  criticalStud: string;
+  criticalDeflection: string;
+  /** Ashmont front-elevation brick veneer option. null = follow the wall (front façade + brick veneer). */
+  frontBrickVeneer: boolean | null;
 }
 
 export interface ReviewRound {
@@ -118,12 +145,21 @@ export interface JobData {
   items: Record<string, ItemState>;
   elevations: Elevation[];
   walls: Wall[];
+  /** Text typed in the "e.g. E1-E4" boxes, per elevation id ("internal" for internal walls). */
+  wallLabelDrafts: Record<string, string>;
   openings: Opening[];
   review: {
     requiredChecks: 1 | 2;
     rounds: ReviewRound[];
     entries: ReviewEntry[];
+    /** Checker focus points the checker has verified (#24). */
+    focusChecks: Record<string, FocusCheck>;
   };
+}
+
+export interface FocusCheck {
+  by: string;
+  at: string;
 }
 
 export type Role = 'detailer' | 'checker';

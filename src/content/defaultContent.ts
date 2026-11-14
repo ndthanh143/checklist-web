@@ -1,4 +1,5 @@
-import type { Builder, ChecklistContent, ChecklistItem, Stage } from './types';
+import type { Builder, ChecklistContent, ChecklistItem, FieldDef, Stage } from './types';
+import { DEFAULT_NOG_TABLE, DEFAULT_OPENING_FRAMING } from './types';
 
 // Initial checklist content, built from:
 // - Blueprint_Checklist_Website_Lawmans_MiTek (stage order, rules)  → "Blueprint"
@@ -21,6 +22,23 @@ const stages: Stage[] = [
 
 const ADD_STYLE_LIKE = ['add-style', 'idyll'];
 
+/** Some jobs are recalculated and need a stronger member in some areas (#9). */
+const OTHER_SIZES = (member: string): FieldDef => ({
+  id: 'otherSizes',
+  label: 'Other sizes (if any)',
+  kind: 'rows',
+  addLabel: 'Add other size',
+  hint: `Only when part of the job uses a different ${member} (e.g. recalculated for extra load).`,
+  columns: [
+    { id: 'size', label: 'Size & grade', kind: 'text', placeholder: 'e.g. 90x45 MGP12', required: true },
+    { id: 'where', label: 'Where (walls / area)', kind: 'text', placeholder: 'e.g. E4, E5 — garage', required: true },
+    { id: 'reason', label: 'Reason', kind: 'text', placeholder: 'e.g. girder load' },
+  ],
+});
+
+const BEAM_MID = 'Mid-wall pockets: top plate kept, Trim Beam Pockets unticked';
+const BEAM_END = 'End-of-wall pockets: top plates removed';
+
 const items: ChecklistItem[] = [
   // ───────────────────────── 1. Job Review ─────────────────────────
   {
@@ -32,7 +50,7 @@ const items: ChecklistItem[] = [
       { id: 'roof', label: 'Roof', kind: 'select', options: ['Metal sheet', 'Concrete tiles', 'Terracotta tiles', 'Other'], required: true },
       { id: 'pitch', label: 'Pitch', kind: 'number', unit: '°', required: true },
       { id: 'trussSpacing', label: 'Truss spacing', kind: 'number', unit: 'mm', placeholder: '600', required: true },
-      { id: 'ceiling', label: 'Ceiling height', kind: 'number', unit: 'mm', required: true },
+      { id: 'ceilingType', label: 'Ceiling type', kind: 'text', placeholder: 'e.g. 13mm Plaster / direct to BC', required: true },
       { id: 'overhang', label: 'Eave overhang', kind: 'number', unit: 'mm', required: true },
       { id: 'wind', label: 'Wind class', kind: 'select', options: ['N1', 'N2', 'N3', 'N4', 'Other'], required: true },
     ],
@@ -56,8 +74,17 @@ const items: ChecklistItem[] = [
         options: ['Floor joist layout', 'Floor beam layout (Meyer Timber)', 'Structural engineering / steel shop drawings', 'Point loads and structural beams located'],
         requireAll: true,
       },
+      { id: 'external', label: 'External walls', kind: 'checks', options: ['External walls are load-bearing'] },
+      {
+        id: 'internalLb',
+        label: 'Internal load-bearing walls (labels)',
+        kind: 'text',
+        placeholder: 'e.g. I3, I7, I12 — leave empty if none',
+        hint: 'Some internal walls carry the floor or a point load. These walls are ticked "LB" when you add them in Wall Panels.',
+      },
     ],
     ref: { source: 'Spec', section: 'III.1' },
+    checkerFocus: true,
   },
   {
     id: 'jr-slab',
@@ -111,8 +138,10 @@ const items: ChecklistItem[] = [
     fields: [
       { id: 'stud', label: 'Stud size & grade', kind: 'text', suggest: 'builder.stud', required: true },
       { id: 'spacing', label: 'Stud spacing', kind: 'select', options: ['600cc', '450cc', 'Mixed'], required: true },
+      OTHER_SIZES('stud'),
     ],
     ref: { source: 'Spec', section: 'III.6' },
+    checkerFocus: true,
   },
   {
     id: 'js-top-plate',
@@ -126,8 +155,10 @@ const items: ChecklistItem[] = [
     fields: [
       { id: 'lb', label: 'Load-bearing (top + ribbon)', kind: 'text', suggest: 'builder.lbTopPlate', required: true },
       { id: 'nlb', label: 'Non-load-bearing top plate', kind: 'text', suggest: 'builder.nlbTopPlate', required: true },
+      OTHER_SIZES('top / ribbon plate'),
     ],
     ref: { source: 'Spec', section: 'III.4' },
+    checkerFocus: true,
   },
   {
     id: 'js-bottom-plate',
@@ -137,8 +168,10 @@ const items: ChecklistItem[] = [
     fields: [
       { id: 'bottom', label: 'Bottom plate', kind: 'text', suggest: 'builder.bottomPlate', required: true },
       { id: 'support', label: 'Check', kind: 'checks', options: ['Bottom plate fully supported'], requireAll: true },
+      OTHER_SIZES('bottom plate'),
     ],
     ref: { source: 'Spec', section: 'III.5' },
+    checkerFocus: true,
   },
   {
     id: 'js-heights',
@@ -152,6 +185,7 @@ const items: ChecklistItem[] = [
       { id: 'internal', label: 'Internal wall height', kind: 'number', unit: 'mm', required: true },
     ],
     ref: { source: 'Blueprint', section: '2.2.5' },
+    checkerFocus: true,
   },
   {
     id: 'js-noggings',
@@ -174,7 +208,7 @@ const items: ChecklistItem[] = [
     id: 'js-nog-spacing',
     stage: 'job-setup',
     title: 'Nog height and spacing',
-    detail: 'Usually half the wall frame height. 2450 → nog height 1220, centres 1200. 2740 → nog height 1350, centres 1350.',
+    detail: 'Usually half the wall frame height. 2450 → nog height 1220, centres 1200. 2600 and 2740 → nog height 1350, centres 1350.',
     widget: 'nog-height',
     fields: [
       { id: 'height', label: 'Nog height', kind: 'number', unit: 'mm', required: true },
@@ -211,6 +245,20 @@ const items: ChecklistItem[] = [
     stage: 'wall-input',
     title: 'Members follow the engineering plan',
     detail: 'Members noted on this job’s engineering drawings (LVL studs, beams, posts…) must be detailed exactly as specified. This applies to every builder.',
+    fields: [
+      {
+        id: 'members',
+        label: 'Members from the engineering plan',
+        kind: 'rows',
+        addLabel: 'Add member',
+        columns: [
+          { id: 'member', label: 'Member', kind: 'text', placeholder: 'e.g. LVL stud, beam B1, post P2', required: true },
+          { id: 'size', label: 'Size & grade', kind: 'text', placeholder: 'e.g. 90x45 LVL13', required: true },
+          { id: 'location', label: 'Location', kind: 'text', placeholder: 'e.g. E7 / Bed 2' },
+        ],
+      },
+      { id: 'drawings', label: 'Screenshots of the engineering drawings (optional)', kind: 'photos' },
+    ],
     tips: [{ job: '26-89', text: 'LVL studs on engineering drawings → detail as 90x45 WES DWE4T-D VL-LO (LVL13, not meyWALL).' }],
   },
   {
@@ -218,6 +266,7 @@ const items: ChecklistItem[] = [
     stage: 'wall-input',
     title: 'Wall dimension check',
     detail: 'Check wall lengths and positions against the floor plan.',
+    checkerFocus: true,
   },
   {
     id: 'wi-step-down',
@@ -230,11 +279,21 @@ const items: ChecklistItem[] = [
       '- Remember the step-down note and workline in Labels & Notes.',
     widget: 'step-down-height',
     fields: [
-      { id: 'areas', label: 'Step-down areas', kind: 'text', placeholder: 'Garage, Porch, Alfresco', required: true },
-      { id: 'labels', label: 'Step-down wall labels', kind: 'text', placeholder: 'E12, E13', required: true },
-      { id: 'depth', label: 'Step-down depth', kind: 'number', unit: 'mm', required: true },
+      {
+        id: 'areas',
+        label: 'Step-down areas',
+        kind: 'rows',
+        addLabel: 'Add area',
+        required: true,
+        columns: [
+          { id: 'area', label: 'Area', kind: 'text', placeholder: 'e.g. Garage', required: true },
+          { id: 'labels', label: 'Wall labels', kind: 'text', placeholder: 'e.g. E12, E13', required: true },
+          { id: 'depth', label: 'Step-down depth', kind: 'number', unit: 'mm', required: true },
+        ],
+      },
     ],
     ref: { source: 'Blueprint', section: '4.1', images: ['/spec/step-down-note-1.png', '/spec/step-down-note-2.png', '/spec/step-down-note-3.png', '/spec/step-down-note-4.png'] },
+    checkerFocus: true,
   },
   {
     id: 'wi-raked',
@@ -291,8 +350,19 @@ const items: ChecklistItem[] = [
     stage: 'wall-input',
     title: 'Input posts',
     appliesWhen: { conditions: ['posts'] },
+    detail: 'See the plan and detail examples in the Reference panel (click "See spec").',
     fields: [{ id: 'checks', label: 'Checked', kind: 'checks', options: ['Posts input (beam, line)', 'Walls covering posts illustrated'], requireAll: true }],
-    ref: { source: 'Blueprint', section: '6' },
+    ref: {
+      source: 'Blueprint',
+      section: '6',
+      images: [
+        '/spec/post-case-1-plan.png | Case 1 — Plan',
+        '/spec/post-case-1-detail.png | Case 1 — Detail',
+        '/spec/post-case-2-plan.png | Case 2 — Plan',
+        '/spec/post-case-2-detail.png | Case 2 — Detail',
+      ],
+    },
+    checkerFocus: true,
   },
   {
     id: 'wi-beams',
@@ -307,10 +377,46 @@ const items: ChecklistItem[] = [
         id: 'checks',
         label: 'Checked',
         kind: 'checks',
-        options: ['Beam sizes from Hyne Design / Autobeam', 'Mid-wall pockets: top plate kept, Trim Beam Pockets unticked', 'End-of-wall pockets: top plates removed'],
+        options: ['Beam sizes from Hyne Design / Autobeam', BEAM_MID, BEAM_END],
+      },
+      {
+        id: 'beams',
+        label: 'Beam sizes',
+        kind: 'rows',
+        addLabel: 'Add beam',
+        hint: 'Sizes calculated in Hyne Design / Autobeam, or given on the plans from the client.',
+        columns: [
+          { id: 'beam', label: 'Beam / location', kind: 'text', placeholder: 'e.g. B1 over garage door', required: true },
+          { id: 'size', label: 'Size & grade', kind: 'text', placeholder: 'e.g. 2/240x45 LVL', required: true },
+          { id: 'source', label: 'Source', kind: 'select', options: ['Hyne Design', 'Autobeam', 'Client plan'] },
+        ],
+      },
+      {
+        id: 'midPhotos',
+        label: 'Mid-wall beam pockets — screenshots from the detail',
+        kind: 'photos',
+        showWhen: { field: 'checks', includes: BEAM_MID },
+      },
+      {
+        id: 'endPositions',
+        label: 'End-of-wall beam positions',
+        kind: 'rows',
+        addLabel: 'Add position',
+        showWhen: { field: 'checks', includes: BEAM_END },
+        columns: [
+          { id: 'wall', label: 'Wall', kind: 'text', placeholder: 'e.g. E7', required: true },
+          { id: 'position', label: 'Beam position', kind: 'text', placeholder: 'e.g. left end, 90 mm pocket', required: true },
+        ],
+      },
+      {
+        id: 'endPhotos',
+        label: 'End-of-wall beam pockets — screenshots from the detail',
+        kind: 'photos',
+        showWhen: { field: 'checks', includes: BEAM_END },
       },
     ],
     ref: { source: 'Spec', section: 'III.3' },
+    checkerFocus: true,
   },
   {
     id: 'wi-stairs',
@@ -339,12 +445,15 @@ const items: ChecklistItem[] = [
     stage: 'elevations',
     title: 'Elevations set and named',
     detail: 'Usually 4 elevations. Use one naming style: North/South/East/West, Front/Rear/Far/Near, or Elevation 1, 2, 3…',
+    checkerFocus: true,
     ref: { source: 'Blueprint', section: '8 (7.2 steps 1–2)' },
   },
   {
     id: 'el-front',
     stage: 'elevations',
     title: 'Front façade identified',
+    // Only Ashmont has front-façade rules (#16).
+    appliesWhen: { builders: ['ashmont'] },
     detail: 'The front façade faces the street on the site plan. Mark it in the elevation list above.',
     fields: [{ id: 'street', label: 'Street name', kind: 'text', placeholder: 'e.g. Bennet Road', required: true }],
     builderNotes: { ashmont: 'Openings on brick veneer walls of the front façade need floating studs and +130 mm width.' },
@@ -356,8 +465,12 @@ const items: ChecklistItem[] = [
     id: 'wp-mapping',
     stage: 'wall-panels',
     title: 'Every wall panel assigned to an elevation',
-    detail: 'External panels (E…) go under their elevation. Internal panels (I…) go under "Internal". The table above warns about unassigned or duplicated walls.',
+    detail:
+      'External panels (E…) go under their elevation. Internal panels (I…) go under "Internal". The table above warns about unassigned or duplicated walls.\n' +
+      '- External walls start as load-bearing (LB ticked). Untick LB for an external non-load-bearing wall.\n' +
+      '- Internal walls start as non-load-bearing, except the internal load-bearing walls listed in "Identify load-bearing walls".',
     ref: { source: 'Blueprint', section: '8 (7.2 step 3)' },
+    checkerFocus: true,
   },
   {
     id: 'wp-finish',
@@ -371,20 +484,46 @@ const items: ChecklistItem[] = [
     title: 'Frame length and height within limits',
     detail: 'Enter length and height in the table to check them. Recommended max length 4.5 m; over 5950 mm exceeds the manufacturing limit; over 3450 mm high must be broken for transport.',
     ref: { source: 'Blueprint', section: '5' },
+    checkerFocus: true,
   },
 
   // ───────────────────────── 6. Openings ─────────────────────────
   {
+    id: 'op-ashmont-reminders',
+    stage: 'openings',
+    title: 'Ashmont opening reminders',
+    appliesWhen: { builders: ['ashmont'] },
+    showAbovePanel: true,
+    detail:
+      '- Front elevation brick veneer openings: floating studs included in frame (+130 mm width, note "+ infill").\n' +
+      '- No allowance for stack frames inside the garage.',
+    fields: [
+      {
+        id: 'checks',
+        label: 'Checked',
+        kind: 'checks',
+        requireAll: true,
+        options: ['Floating studs included in frame', 'No allowance for stack frames inside garage'],
+      },
+    ],
+    ref: { source: 'Spec', section: 'IV.2' },
+  },
+  {
     id: 'op-schedule',
     stage: 'openings',
     title: 'All openings entered from the window / door schedule',
-    detail: 'Each opening is entered under its wall, so it shows under the right elevation.',
+    detail:
+      'Each opening is entered under its wall, so it shows under the right elevation. Cabinet openings are entered the same way (type "Cabinet opening" on an internal wall).\n' +
+      '- Compare external opening sizes with the window schedule from the client.',
     ref: { source: 'Blueprint', section: '9 (8.1)' },
+    checkerFocus: true,
   },
   {
     id: 'op-head-height',
     stage: 'openings',
     title: 'Window head height (WHH) and door heights',
+    showAbovePanel: true,
+    checkerFocus: true,
     detail:
       'WHH usually lines up with the external door head height. It may vary between elevations, or a standard WHH may apply with exceptions. Check the elevation drawings, window/door schedule and plan notes.',
     fields: [
@@ -418,16 +557,19 @@ const items: ChecklistItem[] = [
       '- From a plan dimension → the table deducts the wall finish (brick veneer about 150–160 mm, cladding about 35 mm).\n' +
       '- Set Left / Right using the convention in the diagrams.',
     ref: { source: 'Blueprint', section: '9 (8.4)', images: ['/spec/opening-side-vertical.png', '/spec/opening-side-top.png', '/spec/opening-side-bottom.png'] },
+    checkerFocus: true,
   },
   {
     id: 'op-studs',
     stage: 'openings',
     title: 'Opening studs',
     detail:
-      '- Load-bearing wall: design by Hyne Design or Autobeam.\n' +
-      '- Non-load-bearing wall: 45 mm jamb stud when away from junctions or other studs. A 45 mm stud also removes a 10 mm nogging or block near a junction.\n' +
+      'Each opening in the table shows the suggested jamb and prop studs.\n' +
+      '- Opening with a lintel (external, load-bearing, or stud opening over 1800): jamb stud and prop stud 90x35.\n' +
+      '- Internal opening up to 1800 in a non-load-bearing wall: no prop stud, 90x45 jamb stud each side.\n' +
+      '- Door 90 mm from a wall corner → double jamb stud 90x45 on that side. Door 70 mm from a wall corner → double jamb stud 90x35.\n' +
       '- Near a junction, 2/35 mm studs may be used instead of a single 45 mm stud.',
-    ref: { source: 'Blueprint', section: '9 (8.5)' },
+    ref: { source: 'Blueprint', section: '9 (8.5)', images: ['/illustrations/opening-framing.svg | Opening framing'] },
     tips: [{ job: '26-89', text: 'Pantry door changed from 586 to 575 wide to allow a single 35 mm prop stud and 25 mm jamb stud each side. Prop and jamb studs are required.' }],
   },
   {
@@ -435,9 +577,10 @@ const items: ChecklistItem[] = [
     stage: 'openings',
     title: 'Trimmers',
     detail:
+      '- External openings: 90x35 trimmer by default. Change it on the opening (e.g. 90x45, or no lintel).\n' +
       '- Load-bearing wall: minimum 35 mm member; size depends on head height and opening height.\n' +
-      '- Non-load-bearing wall up to 1800 mm wide: 45 mm minimum.\n' +
-      '- Non-load-bearing wall over 1800 mm: lintel design (ceiling load) + 35 mm trimmer.',
+      '- Internal non-load-bearing wall up to 1800 mm (stud opening): 90x45 trimmer, no lintel.\n' +
+      '- Over 1800 mm: lintel design (ceiling load) + 90x35 trimmer.',
     ref: { source: 'Blueprint', section: '9 (8.6)' },
     tips: [{ job: '26-89', text: 'Powder room internal door needs a 90x30 trimmer — add a note for framers to install in the factory.' }],
   },
@@ -448,11 +591,15 @@ const items: ChecklistItem[] = [
     detail:
       'Design with Hyne Design / Autobeam using roof loads (material, structure, pitch), ceiling loads, RLW, span, eave overhang, Dim A, Dim X and truss spacing. The openings table compares the long-term deflection with the span table.\n' +
       '- Largest pine lintel: 190x45 MGP10 (240 / 290 pine warps on site).\n' +
+      '- 90x35 or 140x35 lintel → use 2 ply (2/90x35, 2/140x35).\n' +
+      '- No suitable lintel (lintel too deep for the over above the opening) → jamb and prop studs as 2/LVL studs; the lintel may sit in the floor system.\n' +
+      '- External opening under 1800 mm in an external non-load-bearing wall → no lintel needed.\n' +
       '- Deflection outside the table → consult the truss detailer, client or engineer.\n' +
       '- Solid timber beam above and no room for a lintel → trimmer + double top plates fixed to the underside of the beam.\n' +
       '- Large steel beam above → trimmer frame fixed above or below the steel.\n' +
       '- Posi-Strut floor → ask the Posi-Strut detailer to design a floor beam.',
     ref: { source: 'Spec', section: 'III.8' },
+    checkerFocus: true,
     tips: [
       { job: '26-89', text: 'Kitchen window lintel was 2/130x65 GL15C — 1/190x45 MGP10 required.' },
       { job: '26-89', text: 'Lounge window: a lintel will not fit — a floor beam is required above. Add note "Floor Beam Supports Floor Loads above …".' },
@@ -463,15 +610,14 @@ const items: ChecklistItem[] = [
     id: 'op-adjust',
     stage: 'openings',
     title: 'Opening fit adjustments',
-    detail: 'Invert lintel. When the header height is raised 5 mm to tidy up the trimmer and overs, also raise the opening height 5 mm (removes the 5 mm packing above the opening).',
+    detail:
+      'Choose the detailing method on each opening in the table — it reminds you which notes to add.\n' +
+      '- Header raised 5 mm to tidy up the trimmer and overs → also raise the window opening height 5 mm; no header connect between lintel and trimmers.\n' +
+      '- Cut in ribbon plate → notes "Cut in ribbon plate" and "+ Head Strap", plus the head strap workline.\n' +
+      '- Cut in top plate → note "Cut in top plate".\n' +
+      '- +30 / +25 / +20 trimmer.',
     ref: { source: 'Spec', section: 'III.14.3' },
     tips: [{ job: '26-175', text: 'Header raised 5 mm but window opening not raised — carpenters need the space to pack the trimmer/lintel to suit cladding.' }],
-  },
-  {
-    id: 'op-cabinet',
-    stage: 'openings',
-    title: 'Cabinet openings',
-    ref: { source: 'Excel', section: '3. Opening input' },
   },
   {
     id: 'op-corner',
@@ -499,7 +645,8 @@ const items: ChecklistItem[] = [
     title: 'Floating studs on front-façade brick veneer',
     appliesWhen: { builders: ['ashmont'] },
     detail:
-      'Openings on brick veneer walls of the front façade (street side; may also apply to the street side of corner blocks): width +130 mm (60 mm clearance + 70 mm for a floating stud each side), floating studs included. Add note "+ infill".\n' +
+      'Openings on brick veneer walls of the front façade (street side; may also apply to the street side of corner blocks): width +130 mm (60 mm clearance + 70 mm for a floating stud each side), floating studs included in frame. Add note "+ infill".\n' +
+      'In the openings table these openings show "Front elevation brick veneer" ticked. Untick it, or tick it on another external opening, when the plan says so.\n' +
       'Front entry door: always request the door or stud opening size. If the client is undecided between timber and aluminium, increase the opening and add floating studs.',
     ref: { source: 'Spec', section: 'IV.2.2–2.3' },
     tips: [{ job: '26-89', text: 'Road-facing brick veneer opening W17: +130 mm is correct for Ashmont (60 clearance + 70 floating studs).' }],
@@ -598,6 +745,7 @@ const items: ChecklistItem[] = [
       },
     ],
     ref: { source: 'Spec', section: 'IV.3.5.2' },
+    checkerFocus: true,
   },
   {
     id: 'wa-shower',
@@ -613,6 +761,7 @@ const items: ChecklistItem[] = [
       },
     ],
     ref: { source: 'Spec', section: 'III.17' },
+    checkerFocus: true,
     tips: [{ job: '26-89', text: 'Bath nib wall was missing shower noggings.' }],
   },
   {
@@ -627,8 +776,28 @@ const items: ChecklistItem[] = [
     id: 'wa-critical-capacity',
     stage: 'wall-adjustment',
     title: 'Critical stud capacity calculated',
+    detail:
+      'Wall frames that carry a girder load need critical studs, designed in Autobeam. Enter every area — a job often has several girders.\n' +
+      '- Check both levels: the critical stud must sit under the girder on the upper floor and continue on the floor below.',
+    widget: 'girder-openings',
+    fields: [
+      {
+        id: 'areas',
+        label: 'Critical stud areas',
+        kind: 'rows',
+        addLabel: 'Add area',
+        columns: [
+          { id: 'area', label: 'Area', kind: 'text', placeholder: 'e.g. Bed 2, Ensuite', required: true },
+          { id: 'level', label: 'Level', kind: 'select', options: ['Ground floor', 'First floor', 'Single storey'] },
+          { id: 'girder', label: 'Girder / load', kind: 'text', placeholder: 'e.g. G1 girder truss' },
+          { id: 'size', label: 'Critical stud size', kind: 'text', placeholder: 'e.g. 3/90x35 MGP10', required: true },
+          { id: 'deflection', label: 'Deflection', kind: 'number', unit: 'mm', required: true },
+        ],
+      },
+    ],
     builderNotes: { transpire: 'Minimum 2/90x35 MGP12 studs under critical loads.' },
     ref: { source: 'Excel', section: '4. Wall adjustment' },
+    checkerFocus: true,
   },
   {
     id: 'wa-critical',
@@ -638,6 +807,7 @@ const items: ChecklistItem[] = [
       { id: 'checks', label: 'Checked', kind: 'checks', options: ['Girder supports', 'Beam supports', 'Steel post supports', 'Stair wall frame supports', 'Shower areas'] },
     ],
     ref: { source: 'Excel', section: '4. Wall adjustment' },
+    checkerFocus: true,
   },
   {
     id: 'wa-ashmont',
@@ -696,6 +866,12 @@ const items: ChecklistItem[] = [
       { id: 'aDetailed', label: 'Direction A — detailed', kind: 'number', unit: 'kN', required: true },
       { id: 'bDesigned', label: 'Direction B — designed (required)', kind: 'number', unit: 'kN', required: true },
       { id: 'bDetailed', label: 'Direction B — detailed', kind: 'number', unit: 'kN', required: true },
+      {
+        id: 'screenshots',
+        label: 'Bracing calculation screenshots',
+        kind: 'photos',
+        hint: 'Paste a screenshot (Ctrl+V), drop it here, or choose a file from the bracing app.',
+      },
     ],
     ref: { source: 'Blueprint', section: '10' },
   },
@@ -750,7 +926,8 @@ const items: ChecklistItem[] = [
     stage: 'elevation-check',
     title: 'Extra notes on elevations',
     detail: '"+ Head Straps": needed when a lintel supports roof trusses / rafters directly with no top plate or ribbon plate above. If a screw is not enough for uplift, use a tie-down strap, then a tie-down rod; beyond that needs engineering.',
-    fields: [{ id: 'notes', label: 'Notes used', kind: 'checks', options: ['Cut in top plate', '+ infill', '+ packer', 'Steel post', '+ Head Straps'] }],
+    widget: 'opening-notes',
+    fields: [{ id: 'notes', label: 'Notes used', kind: 'checks', options: ['Cut in top plate', 'Cut in ribbon plate', '+ infill', '+ packer', 'Steel post', '+ Head Straps', 'Head strap workline'] }],
     ref: { source: 'Excel', section: '5. Elevation check' },
     tips: [{ job: '26-89', text: 'Bed 5 opening has a cut-in ribbon plate → needs "+ Head Straps" and "Cut in Ribbon Plate + Packer + Infills".' }],
   },
@@ -763,6 +940,7 @@ const items: ChecklistItem[] = [
     detail: 'Line 1: Job No and floor. Then builder, then Lot + No + Street, then Suburb. No state, postcode or DP number (all jobs are in NSW).',
     widget: 'address-preview',
     ref: { source: 'Blueprint', section: '13' },
+    checkerFocus: true,
     tips: [{ job: '26-89', text: 'Job address was incorrect ("Petter" instead of "Peter"; DP 1313734 not required).' }],
   },
   {
@@ -945,6 +1123,7 @@ const builders: Builder[] = [
     headHeights: { external: 2130, internal: 2110, bic: 2110 },
     openingOverrides: [],
     notes: ADD_STYLE_NOTES,
+    internalDoorCornerGap: 90,
   },
   {
     id: 'betterbuilt',
@@ -961,6 +1140,7 @@ const builders: Builder[] = [
     },
     openingOverrides: [],
     notes: ['70 mm noggings throughout', 'Internal door openings 90 mm from wall corners', 'Clad-wall windows 80 mm below eaves', 'Extra nogs: architrave + vanity'],
+    internalDoorCornerGap: 90,
   },
   {
     id: 'transpire',
@@ -988,12 +1168,15 @@ const builders: Builder[] = [
     headHeights: { external: 2130, internal: 2110, bic: 2110 },
     openingOverrides: [],
     notes: ADD_STYLE_NOTES,
+    internalDoorCornerGap: 90,
   },
   {
     id: 'ashmont',
     name: 'Ashmont Homes',
     shortName: 'Ashmont',
+    logo: '/logos/ashmont.png',
     active: true,
+    usesFrontFacade: true,
     framing: {
       stud: '90x35 meyWALL Red LVL min',
       lbTopPlate: '2/90x35 meyWALL Red LVL min',
@@ -1019,8 +1202,8 @@ const builders: Builder[] = [
 ];
 
 export const defaultContent: ChecklistContent = {
-  version: 1,
-  updatedAt: '2026-11-11T00:00:00.000Z',
+  version: 2,
+  updatedAt: '2026-11-14T00:00:00.000Z',
   stages,
   items,
   builders,
@@ -1028,6 +1211,7 @@ export const defaultContent: ChecklistContent = {
     'internal-door': { label: 'Internal passage door', width: 60, height: 70, note: 'Example: 2040x820 → 2110x880 stud opening' },
     'cavity-slider': { label: 'Cavity sliding door', width: 60, height: 110, doubleWidth: true, note: '(Door width × 2) + 60. Check cavity door system requirements.' },
     'smart-robe': { label: 'Smart robe', width: 15, height: 15, note: 'Refer to supplier brochure' },
+    cabinet: { label: 'Cabinet opening', width: 0, height: 0, note: 'No standard allowance yet — check the cabinet / kitchen drawings' },
     'window-alu': { label: 'Window (aluminium)', width: 60, height: 60, note: 'Use manufacturer schedule' },
     'window-timber': { label: 'Window (timber)', width: 10, height: 10, note: 'Use manufacturer schedule' },
     'ext-door-alu': { label: 'External door (aluminium)', width: 60, height: 30, note: 'Check window supplier specs for the height allowance' },
@@ -1044,4 +1228,6 @@ export const defaultContent: ChecklistContent = {
     { minWidth: 3600, maxWidth: 4200, minDeflection: 3.5, maxDeflection: 4.5 },
     { minWidth: 4300, maxWidth: 6000, minDeflection: 4.0, maxDeflection: 6.0 },
   ],
+  nogTable: DEFAULT_NOG_TABLE,
+  openingFraming: DEFAULT_OPENING_FRAMING,
 };

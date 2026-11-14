@@ -4,6 +4,7 @@ import { finalGate, jobSummary, type SummaryRow } from '../lib/rules';
 import { useSession } from '../store/session';
 import { exportPdf, saveJob } from './fileActions';
 import { IconChecklist, IconFlag, IconLock, IconPdf, IconSave, IconSend, IconSignOff, IconWarn } from './icons';
+import { CheckerFocus } from './CheckerFocus';
 import { STATUS_ICON } from './ItemCard';
 import { ReviewEntries } from './ReviewEntries';
 
@@ -120,6 +121,8 @@ export function Summary() {
           <div className="l">Open review flags</div>
         </div>
       </div>
+
+      {(data.stage === 'review' || role === 'checker' || s.complete > 0) && <CheckerFocus />}
 
       <div className="summary-grid">
         <div className="stack">

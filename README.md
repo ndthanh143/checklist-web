@@ -1,6 +1,6 @@
-# Lawmans Smart Checklist
+# Smart Check Wall
 
-Website checklist wall frame (MiTek 20/20) cho detailer và checker làm job của Lawmans Frame & Truss. Kế hoạch và các quyết định đã chốt: [PLAN.md](PLAN.md).
+Website checklist wall frame (MiTek 20/20) cho detailer và checker làm job của Lawmans Frame & Truss. Kế hoạch và các quyết định đã chốt: [PLAN.md](PLAN.md). Bản cập nhật v2 theo `requirement-update.docx`: [PLAN-v2.md](PLAN-v2.md).
 
 - **Giao diện:** 100% tiếng Anh, 9 stage theo blueprint, chỉ hiện item áp dụng cho builder / house type / job condition.
 - **Dữ liệu job:** không lưu trên server. Job chỉ nằm trong tab trình duyệt và trong file `.chck` trên máy người dùng (refresh = mất phần chưa lưu, có cảnh báo).
@@ -14,6 +14,8 @@ src/
   content/types.ts, schema.ts Kiểu dữ liệu + Zod schema (rule và file .chck)
   job/                        Kiểu dữ liệu job, tạo job mới
   lib/calc.ts                 Công cụ tính (nog, step-down, stud opening, deflection, tie-down…)
+  lib/openings.ts             Gợi ý opening framing: lintel / trimmer / jamb / prop, lintel 2 ply, detailing method
+  lib/focus.ts                Checker focus: các điểm checker cần xem khi review
   lib/rules.ts                Rules engine: item nào hiện, cảnh báo, summary, điều kiện Final PDF
   lib/fileio.ts               Đọc/ghi .chck (JSON hoặc zip khi có ảnh), fingerprint
   lib/pdf.ts                  Draft PDF / Final PDF (pdfmake, font Roboto hỗ trợ tiếng Việt)
@@ -21,7 +23,7 @@ src/
   admin/                      Content editor (/admin)
 functions/                    Cloudflare Pages Functions: login, session, /api/content, /api/admin/*
 migrations/                   D1 schema
-public/                       Logo, hình minh họa spec, trang login
+public/                       Logo, favicon, hình minh họa (illustrations/), hình spec, trang login
 e2e/                          Playwright end-to-end tests
 ```
 
@@ -115,8 +117,12 @@ Vào **Content editor** (link ở cuối trang Home, hoặc `/admin`):
 
 File `.chck` lưu theo rule cũ vẫn mở được. App liệt kê item mới / đã đổi, và item mới bắt đầu ở trạng thái Not started.
 
+### Sau khi deploy bản có rule mới trong code (ví dụ v2)
+
+Rule đang live nằm trong database, nên deploy code không tự đổi rule. Vào `/admin` → tab **Publish & history** → **Load built-in rules** → kiểm tra bằng **Preview** → **Publish**. Nếu đã có ai sửa rule trên production, nút này sẽ ghi đè các sửa đổi đó: export JSON trước để đối chiếu.
+
 ## Lưu ý bảo mật
 
 - Mật khẩu chỉ được kiểm tra trên server. Toàn bộ app (JS, rule) yêu cầu cookie đăng nhập (HttpOnly, ký HMAC, hết hạn sau 12 giờ).
 - Khóa read-only của checker và Final PDF "không sửa được" do app đảm bảo. File `.chck` có fingerprint (SHA-256), sửa bằng tay sẽ bị cảnh báo, nhưng không chống được người cố tình sửa (đã chốt là đủ ở giai đoạn này, xem PLAN.md §10).
-- Logo builder lấy từ blueprint. Ashmont chưa có file logo, đang hiển thị bằng chữ: thêm file vào `public/logos/` rồi điền đường dẫn trong Content editor.
+- Logo builder lấy từ blueprint; logo Ashmont lấy từ `requirement-update.docx` (`public/logos/ashmont.png`). Thêm builder mới: thêm file vào `public/logos/` rồi điền đường dẫn trong Content editor.

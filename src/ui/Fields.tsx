@@ -1,6 +1,9 @@
+import { useRef, useState } from 'react';
 import type { ChecklistItem, FieldDef } from '../content/types';
 import { FLOOR_LABELS } from '../content/types';
-import type { FieldValue, ItemState } from '../job/types';
+import type { FieldValue, ItemState, Photo, RowValue } from '../job/types';
+import { uid } from '../lib/hash';
+import { METHOD_INFO } from '../lib/openings';
 import {
   addressLabel,
   addressWarnings,
@@ -13,9 +16,10 @@ import {
   stepDownFrameHeight,
   tieDown,
 } from '../lib/calc';
-import { getBuilder, isSplitLevel, itemState, suggestionFor } from '../lib/rules';
+import { getBuilder, isSplitLevel, itemState, listValue, openingCalc, rowsValue, suggestionFor } from '../lib/rules';
 import { useSession } from '../store/session';
-import { NumberInput } from './common';
+import { NumberInput, readPhoto, toast, ZoomImage } from './common';
+import { IconAdd, IconCamera, IconDelete } from './icons';
 
 function Suggest({ value, onUse, label = 'Suggested', disabled }: { value: string; onUse: () => void; label?: string; disabled?: boolean }) {
   return (
@@ -32,6 +36,182 @@ function Suggest({ value, onUse, label = 'Suggested', disabled }: { value: strin
   );
 }
 
+function FieldLabel({ field, htmlFor, as = 'label' }: { field: FieldDef; htmlFor?: string; as?: 'label' | 'legend' | 'span' }) {
+  const Tag = as;
+  return (
+    <Tag className="label" {...(as === 'label' ? { htmlFor } : {})}>
+      {field.label}
+      {field.required ? <span className="block-text"> *</span> : null}
+      {field.kind === 'checks' && field.requireAll ? <span className="hint"> — tick every one</span> : null}
+    </Tag>
+  );
+}
+
+/** A small table with "+ Add" (e.g. step-down areas, other sizes, critical studs). */
+function RowsInput({ item, field, value, locked }: { item: ChecklistItem; field: FieldDef; value: FieldValue | undefined; locked: boolean }) {
+  const setValue = useSession((s) => s.setValue);
+  const rows = rowsValue(value);
+  const columns = field.columns ?? [];
+  const set = (next: RowValue[]) => setValue(item.id, field.id, next);
+  const setCell = (i: number, col: string, v: string) => set(rows.map((r, n) => (n === i ? { ...r, [col]: v } : r)));
+  return (
+    <div className="field rows-field">
+      <FieldLabel field={field} as="span" />
+      {field.hint && <span className="hint">{field.hint}</span>}
+      {rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="grid rows-table">
+            <thead>
+              <tr>
+                {columns.map((c) => (
+                  <th key={c.id}>
+                    {c.label}
+                    {c.required ? <span className="block-text"> *</span> : null}
+                  </th>
+                ))}
+                {!locked && <th style={{ width: 44 }} />}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i}>
+                  {columns.map((c) => {
+                    const v = row[c.id] ?? '';
+                    const aria = `${field.label} row ${i + 1} ${c.label}`;
+                    return (
+                      <td key={c.id}>
+                        {c.kind === 'number' ? (
+                          <NumberInput value={v} onChange={(x) => setCell(i, c.id, x)} unit={c.unit} disabled={locked} placeholder={c.placeholder} ariaLabel={aria} />
+                        ) : c.kind === 'select' ? (
+                          <select className="select" aria-label={aria} value={v} disabled={locked} onChange={(e) => setCell(i, c.id, e.target.value)}>
+                            <option value="">Choose…</option>
+                            {(c.options ?? []).map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                            {v && !(c.options ?? []).includes(v) && <option value={v}>{v}</option>}
+                          </select>
+                        ) : (
+                          <input className="input" aria-label={aria} value={v} placeholder={c.placeholder} disabled={locked} onChange={(e) => setCell(i, c.id, e.target.value)} />
+                        )}
+                      </td>
+                    );
+                  })}
+                  {!locked && (
+                    <td>
+                      <button type="button" className="btn ghost small" aria-label={`Remove row ${i + 1}`} onClick={() => set(rows.filter((_, n) => n !== i))}>
+                        <IconDelete size={15} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {rows.length === 0 && locked && <span className="muted">None entered.</span>}
+      {!locked && (
+        <div>
+          <button type="button" className="btn small" onClick={() => set([...rows, {}])}>
+            <IconAdd size={15} /> {field.addLabel ?? 'Add row'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Pictures attached to an item: choose, drop, or paste (Ctrl+V) a screenshot. */
+function PhotosInput({ item, field, value, locked }: { item: ChecklistItem; field: FieldDef; value: FieldValue | undefined; locked: boolean }) {
+  const { photos, addItemPhotos, removeItemPhoto } = useSession();
+  const [over, setOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const ids = listValue(value);
+  const add = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (images.length === 0) return;
+    try {
+      const read: Photo[] = [];
+      for (const f of images) read.push({ id: uid('p_'), ...(await readPhoto(f)), name: f.name || `screenshot-${new Date().toISOString().slice(0, 19)}.jpg` });
+      addItemPhotos(item.id, field.id, read);
+      toast(read.length === 1 ? 'Picture added' : `${read.length} pictures added`, 'ok');
+    } catch {
+      toast('Could not read that image.', 'error');
+    }
+  };
+  return (
+    <div className="field">
+      <FieldLabel field={field} as="span" />
+      {field.hint && <span className="hint">{field.hint}</span>}
+      {ids.length > 0 && (
+        <div className="photo-grid">
+          {ids.map((pid) => {
+            const p = photos.find((x) => x.id === pid);
+            if (!p) return null;
+            return (
+              <figure key={pid} className="photo-thumb">
+                <ZoomImage src={p.dataUrl} alt={p.name} />
+                {!locked && (
+                  <button type="button" className="btn ghost small photo-remove" aria-label={`Remove ${p.name}`} onClick={() => window.confirm('Remove this picture?') && removeItemPhoto(item.id, field.id, pid)}>
+                    <IconDelete size={14} />
+                  </button>
+                )}
+              </figure>
+            );
+          })}
+        </div>
+      )}
+      {ids.length === 0 && locked && <span className="muted">No pictures.</span>}
+      {!locked && (
+        <div
+          className={`photo-drop${over ? ' over' : ''}`}
+          tabIndex={0}
+          role="button"
+          aria-label={`${field.label}: click, then paste with Ctrl+V, or drop pictures here`}
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData.files);
+            if (files.length) {
+              e.preventDefault();
+              add(files);
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            add(Array.from(e.dataTransfer.files));
+          }}
+        >
+          <IconCamera size={18} />
+          <span>
+            Click here and press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste a screenshot, drop pictures here, or{' '}
+            <button type="button" className="link-btn" onClick={() => fileRef.current?.click()}>
+              choose files
+            </button>
+          </span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              add(Array.from(e.target.files ?? []));
+              e.target.value = '';
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FieldInput({ item, field, state, locked }: { item: ChecklistItem; field: FieldDef; state: ItemState; locked: boolean }) {
   const { data, content, setValue } = useSession();
   const builder = data ? getBuilder(content, data.job.builderId) : undefined;
@@ -42,14 +222,15 @@ export function FieldInput({ item, field, state, locked }: { item: ChecklistItem
   const inputId = `${item.id}-${field.id}`;
   const suggestLabel = field.suggest?.startsWith('builder.') ? `Suggested for ${builder?.shortName ?? 'builder'}` : 'Suggested';
 
+  if (field.kind === 'rows') return <RowsInput item={item} field={field} value={value} locked={locked} />;
+  if (field.kind === 'photos') return <PhotosInput item={item} field={field} value={value} locked={locked} />;
+
   if (field.kind === 'checks') {
-    const ticked = Array.isArray(value) ? value : [];
+    const ticked = listValue(value);
     return (
       <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="label">
-          {field.label}
-          {field.requireAll ? <span className="hint"> — tick every one</span> : null}
-        </legend>
+        <FieldLabel field={field} as="legend" />
+        {field.hint && <span className="hint">{field.hint}</span>}
         <div className="checks">
           {(field.options ?? []).map((o) => (
             <label key={o} className={`check${locked ? ' disabled' : ''}`}>
@@ -91,11 +272,9 @@ export function FieldInput({ item, field, state, locked }: { item: ChecklistItem
 
   return (
     <div className="field">
-      <label className="label" htmlFor={inputId}>
-        {field.label}
-        {field.required ? <span className="block-text"> *</span> : null}
-      </label>
+      <FieldLabel field={field} htmlFor={inputId} />
       {control}
+      {field.hint && <span className="hint">{field.hint}</span>}
       {suggestion && suggestion !== str && <Suggest value={suggestion} label={suggestLabel} onUse={() => set(suggestion)} disabled={locked} />}
     </div>
   );
@@ -141,7 +320,7 @@ export function Widget({ item, state, locked }: { item: ChecklistItem; state: It
     case 'nog-height': {
       const h = num(other('js-heights', 'external'));
       if (h === null) return <div className="calc-box">Enter the external wall height in “Wall heights” to get a suggestion.</div>;
-      const s = nogSuggestion(h);
+      const s = nogSuggestion(h, content.nogTable);
       const done = v('height') === String(s.height) && v('centres') === String(s.centres);
       return (
         <div className="calc-box">
@@ -163,20 +342,76 @@ export function Widget({ item, state, locked }: { item: ChecklistItem; state: It
     }
     case 'step-down-height': {
       const h = num(other('js-heights', 'external'));
-      const d = num(v('depth'));
       const split = isSplitLevel(data.job);
-      if (h === null || d === null) return <div className="calc-box">Enter the external wall height (Job Setup) and the step-down depth to calculate the frame height.</div>;
+      const areas = rowsValue(state.values.areas).filter((r) => num(r.depth) !== null);
+      if (h === null || areas.length === 0) return <div className="calc-box">Enter the external wall height (Job Setup) and each step-down depth to calculate the frame heights.</div>;
       return (
         <div className="calc-box">
-          {split ? (
-            <>
-              Split-level house: frame height stays <span className="result">{h} mm</span>. Adjust the elevation offset by {d} mm so the panel drops to the lower level.
-            </>
-          ) : (
-            <>
-              Standard house: frame height = {h} + {d} = <span className="result">{stepDownFrameHeight(h, d, false)} mm</span>
-            </>
-          )}
+          {split ? <b>Split-level house — frame height stays {h} mm; adjust the elevation offset:</b> : <b>Standard house — frame height = wall height + step-down depth:</b>}
+          <ul className="issue-list" style={{ margin: '4px 0 0' }}>
+            {areas.map((r, i) => {
+              const d = num(r.depth)!;
+              return (
+                <li key={i}>
+                  {r.area || `Area ${i + 1}`}
+                  {r.labels ? ` (${r.labels})` : ''}:{' '}
+                  {split ? (
+                    <>
+                      offset <span className="result">{d} mm</span>
+                    </>
+                  ) : (
+                    <>
+                      {h} + {d} = <span className="result">{stepDownFrameHeight(h, d, false)} mm</span>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      );
+    }
+    case 'opening-notes': {
+      const rows = data.openings
+        .map((o) => {
+          const notes = new Set<string>();
+          for (const m of o.methods) METHOD_INFO[m].notes.forEach((n) => notes.add(n));
+          if (openingCalc(content, data, o).frontBrickVeneer) notes.add('+ infill');
+          return { o, notes: [...notes] };
+        })
+        .filter((r) => r.notes.length > 0);
+      if (rows.length === 0) return <div className="calc-box">No opening needs an extra note yet (from the detailing methods chosen in Openings).</div>;
+      return (
+        <div className="calc-box">
+          <b>Notes needed by the openings</b>
+          <ul className="issue-list" style={{ margin: '4px 0 0' }}>
+            {rows.map(({ o, notes }) => (
+              <li key={o.id}>
+                <b>{o.label || 'Opening'}</b>: {notes.join(' · ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    case 'girder-openings': {
+      const list = data.openings.filter((o) => o.underGirder);
+      if (list.length === 0) return null;
+      return (
+        <div className="calc-box">
+          <b>Openings marked “Under girder”</b> <span className="hint">(entered in Openings)</span>
+          <ul className="issue-list" style={{ margin: '4px 0 0' }}>
+            {list.map((o) => {
+              const wall = data.walls.find((w) => w.id === o.wallId);
+              return (
+                <li key={o.id}>
+                  <b>{o.label || 'Opening'}</b>
+                  {wall ? ` (${wall.label})` : ''}: critical stud {o.criticalStud ? <b>{o.criticalStud}</b> : <span className="warn-text">size missing</span>}, deflection{' '}
+                  {o.criticalDeflection ? <b>{o.criticalDeflection} mm</b> : <span className="warn-text">missing</span>}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       );
     }

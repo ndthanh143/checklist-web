@@ -10,6 +10,12 @@ import { BuildersEditor } from './BuildersEditor';
 import { ItemsEditor } from './ItemsEditor';
 import { TablesEditor } from './TablesEditor';
 import '../styles.css';
+
+/** Rules saved by an older app version may miss newer parts (tables, opening types); parsing fills them in. */
+function withDefaults(c: ChecklistContent): ChecklistContent {
+  const r = contentSchema.safeParse(c);
+  return r.success ? (r.data as ChecklistContent) : c;
+}
 import './admin.css';
 
 type Tab = 'items' | 'builders' | 'tables' | 'publish';
@@ -40,11 +46,13 @@ export default function ContentEditor() {
       try {
         const me = await adminApi.me();
         setEmail(me.email);
-        const published = await adminApi.published();
+        // Fill in anything added to the rules format since they were saved.
+        const raw = await adminApi.published();
+        const published = raw ? withDefaults(raw) : null;
         setPublishedVersion(published?.version ?? 0);
         const draft = await adminApi.getDraft();
         if ('content' in draft) {
-          setContent(draft.content);
+          setContent(withDefaults(draft.content));
           setDraftInfo({ updatedAt: draft.updatedAt, updatedBy: draft.updatedBy });
         } else setContent(published ?? defaultContent);
         loadHistory();
@@ -170,7 +178,7 @@ export default function ContentEditor() {
     <div className="app">
       <header className="topbar">
         <a className="brand" href="/">
-          <img className="lawmans" src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
+          <img className="app-logo" src="/logos/smart-check-wall-horizontal.png" alt="Smart Check Wall" />
         </a>
         <div className="job-chip">
           <span className="title">Content editor — checklist rules</span>
@@ -210,7 +218,7 @@ export default function ContentEditor() {
           [
             ['items', `Checklist items (${content.items.length})`],
             ['builders', `Builders (${content.builders.length})`],
-            ['tables', 'Opening allowances & lintel table'],
+            ['tables', 'Tables: framing, nogs, allowances, lintels'],
             ['publish', 'Publish & history'],
           ] as [Tab, string][]
         ).map(([t, label]) => (
@@ -260,7 +268,8 @@ export default function ContentEditor() {
                     onClick={async () => {
                       if (!window.confirm('Throw away the draft and go back to the published rules?')) return;
                       await adminApi.discardDraft();
-                      setContent((await adminApi.published()) ?? defaultContent);
+                      const p = await adminApi.published();
+                      setContent(p ? withDefaults(p) : defaultContent);
                       setDraftInfo(null);
                       setDirty(false);
                     }}
@@ -276,6 +285,24 @@ export default function ContentEditor() {
                 </button>
                 <button className="btn" onClick={importJson}>
                   <IconUpload size={16} /> Import JSON
+                </button>
+              </div>
+              <h3 className="mt">Built-in rules</h3>
+              <p className="muted">
+                The app ships with its own copy of the rules (edition {defaultContent.version}, {new Date(defaultContent.updatedAt).toLocaleDateString('en-AU')}). Load it after an app update that
+                changed the checklist, then review and publish. This replaces everything in the editor.
+              </p>
+              <div>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    if (!window.confirm('Replace everything in the editor with the built-in rules? Changes made here that are not in the built-in rules will be lost.')) return;
+                    setContent({ ...defaultContent, version: content.version });
+                    setDirty(true);
+                    toast('Built-in rules loaded. Save the draft or publish to keep them.', 'ok');
+                  }}
+                >
+                  Load built-in rules
                 </button>
               </div>
             </section>
@@ -334,7 +361,7 @@ function AdminLogin() {
   return (
     <main className="page page-narrow">
       <form className="card card-pad stack" style={{ maxWidth: 440, margin: '40px auto' }} onSubmit={submit}>
-        <img src="/logos/lawmans.png" alt="Lawmans Frame & Truss" style={{ height: 38, alignSelf: 'flex-start' }} />
+        <img src="/logos/smart-check-wall-horizontal.png" alt="Smart Check Wall" style={{ height: 38, alignSelf: 'flex-start' }} />
         <h1>Content editor</h1>
         <p className="muted">For staff who update the checklist rules. Your name is saved in the publish history.</p>
         <div className="field">

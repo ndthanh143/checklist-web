@@ -1,4 +1,5 @@
-import type { Allowance, Builder, LintelBand, OpeningType } from '../content/types';
+import type { Allowance, Builder, LintelBand, NogRow, OpeningType } from '../content/types';
+import { DEFAULT_NOG_TABLE } from '../content/types';
 
 // All lengths in mm unless stated. Every function returns plain data so the UI
 // can show the suggestion and let the user confirm it (never auto-apply).
@@ -23,10 +24,10 @@ export function internalWallHeight(external: number): number {
   return external - 25;
 }
 
-/** Blueprint 2.2.6: nog height ≈ half the frame height, with two known defaults. */
-export function nogSuggestion(wallHeight: number): { height: number; centres: number; known: boolean } {
-  if (wallHeight === 2450) return { height: 1220, centres: 1200, known: true };
-  if (wallHeight === 2740) return { height: 1350, centres: 1350, known: true };
+/** Blueprint 2.2.6: nog height ≈ half the frame height, except the known heights in the table (e.g. 2600 → 1350). */
+export function nogSuggestion(wallHeight: number, table: NogRow[] = DEFAULT_NOG_TABLE): { height: number; centres: number; known: boolean } {
+  const row = table.find((r) => r.wallHeight === wallHeight);
+  if (row) return { height: row.height, centres: row.centres, known: true };
   const half = Math.round(wallHeight / 2 / 10) * 10;
   return { height: half, centres: half, known: false };
 }

@@ -6,6 +6,7 @@ import { Detail, ZoomImage } from './common';
 import { IconBack, IconHide, IconNext, IconShow, IconSummary, IconTip } from './icons';
 import { ItemCard } from './ItemCard';
 import { ElevationsPanel, JobInfoPanel, OpeningsPanel, WallsPanel } from './Panels';
+import { StageArt } from './StageArt';
 
 function Sidebar() {
   const { content, data, stage, setStage, go } = useSession();
@@ -51,6 +52,32 @@ function describeCondition(item: ChecklistItem, builderName: (id: string) => str
   return parts.join('; ');
 }
 
+/** "/spec/a.png | Case 1 — Plan" → { src, caption }. */
+export function parseRefImage(line: string): { src: string; caption: string } {
+  const [src, ...rest] = line.split('|');
+  return { src: src.trim(), caption: rest.join('|').trim() };
+}
+
+function RefImages({ item }: { item: ChecklistItem }) {
+  const images = (item.ref?.images ?? []).map(parseRefImage);
+  if (images.length === 0) return null;
+  const captioned = images.some((i) => i.caption);
+  return (
+    <div className={captioned ? 'ref-grid' : undefined}>
+      {images.map(({ src, caption }) =>
+        caption ? (
+          <figure key={src} className="ref-figure">
+            <ZoomImage src={src} alt={`${item.title} — ${caption}`} />
+            <figcaption>{caption}</figcaption>
+          </figure>
+        ) : (
+          <ZoomImage key={src} src={src} alt={`${item.title} — reference`} />
+        ),
+      )}
+    </div>
+  );
+}
+
 function ReferencePanel({ item }: { item: ChecklistItem | null }) {
   const { content, data } = useSession();
   if (!data) return null;
@@ -68,9 +95,8 @@ function ReferencePanel({ item }: { item: ChecklistItem | null }) {
                 {item.ref.source} {item.ref.section}
               </span>
               {item.ref.text && <Detail text={item.ref.text} />}
-              {(item.ref.images ?? []).map((src) => (
-                <ZoomImage key={src} src={src} alt={`${item.title} — reference`} />
-              ))}
+              <RefImages item={item} />
+
             </div>
           )}
           {rule && (
@@ -153,16 +179,27 @@ export function Workspace() {
       <Sidebar />
       <main className="main">
         <header className="stage-head">
-          <span className="kicker">
-            Stage {stageIndex + 1} of {content.stages.length} · {stageDef.ref}
-          </span>
-          <h2>{stageDef.title}</h2>
-          <p>{stageDef.summary}</p>
+          <div>
+            <span className="kicker">
+              Stage {stageIndex + 1} of {content.stages.length} · {stageDef.ref}
+            </span>
+            <h2>{stageDef.title}</h2>
+            <p>{stageDef.summary}</p>
+          </div>
+          <StageArt stage={stage} />
         </header>
+        {/* Items marked "show above the table" (e.g. WHH before the openings) come first — visibleItems puts them first. */}
+        {items.map((item, i) =>
+          item.showAbovePanel ? (
+            <ItemCard key={item.id} item={item} num={`${stageIndex + 1}.${i + 1}`} selected={selectedId === item.id} onSelect={() => setSelectedId(item.id)} />
+          ) : null,
+        )}
         {Panel && <Panel />}
-        {items.map((item, i) => (
-          <ItemCard key={item.id} item={item} num={`${stageIndex + 1}.${i + 1}`} selected={selectedId === item.id} onSelect={() => setSelectedId(item.id)} />
-        ))}
+        {items.map((item, i) =>
+          item.showAbovePanel ? null : (
+            <ItemCard key={item.id} item={item} num={`${stageIndex + 1}.${i + 1}`} selected={selectedId === item.id} onSelect={() => setSelectedId(item.id)} />
+          ),
+        )}
         {hidden.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <button className="btn ghost small" onClick={() => setShowHidden(!showHidden)}>

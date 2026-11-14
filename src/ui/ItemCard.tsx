@@ -1,12 +1,15 @@
-import type { ChecklistItem } from '../content/types';
+import type { ChecklistItem, FieldKind } from '../content/types';
 import type { Status } from '../job/types';
 import { STATUSES, STATUS_LABELS } from '../job/types';
-import { getBuilder, itemProblems, itemState } from '../lib/rules';
+import { getBuilder, isFieldVisible, itemProblems, itemState } from '../lib/rules';
 import { useSession } from '../store/session';
 import { Detail } from './common';
 import { FieldInput, Widget } from './Fields';
-import { IconBlocked, IconDone, IconInfo, IconNA, IconNotStarted, IconTip, IconWarn } from './icons';
+import { IconBlocked, IconDone, IconFocus, IconInfo, IconNA, IconNotStarted, IconTip, IconWarn } from './icons';
 import { ReviewEntries } from './ReviewEntries';
+
+/** Fields that take the full width of the item card. */
+const WIDE_FIELDS: FieldKind[] = ['checks', 'textarea', 'rows', 'photos'];
 
 export const STATUS_ICON: Record<Status, typeof IconDone> = {
   'not-started': IconNotStarted,
@@ -27,12 +30,20 @@ export function ItemCard({ item, num, selected, onSelect }: { item: ChecklistIte
   const locked = role !== 'detailer';
   const problems = state.status === 'done' ? itemProblems(item, state) : [];
   const openFlags = data.review.entries.filter((e) => e.itemId === item.id && e.kind === 'flag' && !e.resolved).length;
+  const fields = (item.fields ?? []).filter((f) => isFieldVisible(f, state));
+  // #24: the points the checker must focus on stand out during review.
+  const focus = !!item.checkerFocus && role === 'checker';
 
   return (
-    <article className={`item s-${state.status}${selected ? ' selected' : ''}`} id={`item-${item.id}`} onFocusCapture={onSelect} onClick={onSelect}>
+    <article className={`item s-${state.status}${selected ? ' selected' : ''}${focus ? ' focus' : ''}`} id={`item-${item.id}`} onFocusCapture={onSelect} onClick={onSelect}>
       <div className="item-head">
         <span className="num">{num}</span>
         <h3>{item.title}</h3>
+        {focus && (
+          <span className="pill focus-badge" title="Key point for the checker">
+            <IconFocus size={13} /> Checker focus
+          </span>
+        )}
         {openFlags > 0 && <span className="pill block">{openFlags} open flag{openFlags > 1 ? 's' : ''}</span>}
         {item.ref && (
           <button
@@ -56,10 +67,10 @@ export function ItemCard({ item, num, selected, onSelect }: { item: ChecklistIte
             </div>
           </div>
         )}
-        {(item.fields ?? []).length > 0 && (
+        {fields.length > 0 && (
           <div className="field-row">
-            {item.fields!.map((f) => (
-              <div key={f.id} style={f.kind === 'checks' || f.kind === 'textarea' ? { gridColumn: '1 / -1' } : undefined}>
+            {fields.map((f) => (
+              <div key={f.id} style={WIDE_FIELDS.includes(f.kind) ? { gridColumn: '1 / -1' } : undefined}>
                 <FieldInput item={item} field={f} state={state} locked={locked} />
               </div>
             ))}

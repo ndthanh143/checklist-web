@@ -1,14 +1,15 @@
-import { useState } from 'react';
-import { CONDITION_KEYS, CONDITION_LABELS, FLOOR_KINDS, FLOOR_LABELS, HOUSE_TYPES, HOUSE_TYPE_LABELS, OPENING_TYPES } from '../content/types';
+import { CONDITION_KEYS, CONDITION_LABELS, FLOOR_KINDS, FLOOR_LABELS, HOUSE_TYPES, HOUSE_TYPE_LABELS } from '../content/types';
 import { ELEVATION_NAMING, nameFor } from '../job/factory';
-import type { Opening, Wall, WallFinish } from '../job/types';
-import { addressWarnings, checkFrameHeight, checkFrameLength, num, pineLintelWarning, planToFrameDimension, trimmerRule, type Check } from '../lib/calc';
-import { getBuilder, itemState, openingCalc, wallIssues } from '../lib/rules';
+import type { Wall, WallFinish } from '../job/types';
+import { addressWarnings, checkFrameHeight, checkFrameLength, num, type Check } from '../lib/calc';
+import { loadBearingIssues, usesFrontFacade, wallIssues } from '../lib/rules';
 import { useSession } from '../store/session';
-import { NumberInput, YesNo } from './common';
+import { NumberInput, toast, YesNo } from './common';
 import { IconAdd, IconDelete, IconWarn } from './icons';
 
-function CheckPill({ c }: { c: Check }) {
+export { OpeningsPanel } from './OpeningCard';
+
+export function CheckPill({ c }: { c: Check }) {
   return <span className={`pill ${c.level}`}>{c.message}</span>;
 }
 
@@ -91,10 +92,11 @@ export function JobInfoPanel() {
 // ─── Stage 4: elevations ───
 
 export function ElevationsPanel() {
-  const { data, role, addElevation, updateElevation, removeElevation } = useSession();
+  const { data, content, role, addElevation, updateElevation, removeElevation } = useSession();
   if (!data) return null;
   const locked = role !== 'detailer';
   const els = data.elevations;
+  const front = usesFrontFacade(content, data);
   const applyNaming = (style: keyof typeof ELEVATION_NAMING) => {
     if (els.some((e) => e.name.trim()) && !window.confirm('Rename all elevations?')) return;
     els.forEach((e, i) => updateElevation(e.id, { name: nameFor(style, i) }));
@@ -116,7 +118,7 @@ export function ElevationsPanel() {
             <tr>
               <th style={{ width: 40 }}>#</th>
               <th>Name</th>
-              <th style={{ width: 150 }}>Front façade (street)</th>
+              {front && <th style={{ width: 150 }}>Front façade (street)</th>}
               <th style={{ width: 110 }}>Walls</th>
               <th style={{ width: 60 }} />
             </tr>
@@ -128,12 +130,14 @@ export function ElevationsPanel() {
                 <td>
                   <input className="input" aria-label={`Elevation ${i + 1} name`} value={e.name} disabled={locked} onChange={(ev) => updateElevation(e.id, { name: ev.target.value })} />
                 </td>
-                <td>
-                  <label className="check">
-                    <input type="radio" name="front" checked={e.frontFacade} disabled={locked} onChange={() => updateElevation(e.id, { frontFacade: true })} />
-                    <span>{e.frontFacade ? 'Front façade' : 'Set as front'}</span>
-                  </label>
-                </td>
+                {front && (
+                  <td>
+                    <label className="check">
+                      <input type="radio" name="front" checked={e.frontFacade} disabled={locked} onChange={() => updateElevation(e.id, { frontFacade: true })} />
+                      <span>{e.frontFacade ? 'Front façade' : 'Set as front'}</span>
+                    </label>
+                  </td>
+                )}
                 <td>{data.walls.filter((w) => w.elevationId === e.id).map((w) => w.label).join(', ') || <span className="muted">—</span>}</td>
                 <td>
                   <button className="btn ghost small" disabled={locked} aria-label={`Remove ${e.name}`} onClick={() => window.confirm(`Remove ${e.name}? Its walls move to "Internal".`) && removeElevation(e.id)}>
@@ -149,7 +153,7 @@ export function ElevationsPanel() {
         <button className="btn" disabled={locked} onClick={() => addElevation(nameFor('numbered', els.length))}>
           <IconAdd size={16} /> Add elevation
         </button>
-        {!els.some((e) => e.frontFacade) && <span className="warn-text"><IconWarn size={14} /> No front façade set yet</span>}
+        {front && !els.some((e) => e.frontFacade) && <span className="warn-text"><IconWarn size={14} /> No front façade set yet</span>}
       </div>
     </section>
   );
@@ -221,43 +225,52 @@ function WallRows({ walls, locked }: { walls: Wall[]; locked: boolean }) {
   );
 }
 
+/**
+ * The typed labels ("E1-E8") are kept in the job — they survive changing stage and are saved
+ * in the .chck file. Adding again only adds the labels that do not exist yet.
+ */
 function AddWalls({ elevationId, prefix, locked }: { elevationId: string | null; prefix: string; locked: boolean }) {
-  const { addWall } = useSession();
-  const [text, setText] = useState('');
+  const { data, addWalls, setWallLabelDraft } = useSession();
+  const key = elevationId ?? 'internal';
+  const text = data?.wallLabelDrafts[key] ?? '';
+  const labels = parseLabels(text);
+  const missing = labels.filter((l) => !data?.walls.some((w) => w.label.trim().toUpperCase() === l));
   const add = () => {
-    for (const l of parseLabels(text)) addWall(l, elevationId);
-    setText('');
+    const r = addWalls(labels, elevationId);
+    if (r.added === 0) toast(r.existing.length ? `All these walls are already in the table (${r.existing.join(', ')}).` : 'Type wall labels first, e.g. E1-E8.', 'info');
+    else toast(`Added ${r.added} wall${r.added > 1 ? 's' : ''}${r.existing.length ? ` · already there: ${r.existing.join(', ')}` : ''}`, 'ok');
   };
   return (
     <div className="row">
       <input
         className="input"
         style={{ width: 220 }}
-        aria-label="Wall labels to add"
+        aria-label={`Wall labels to add (${elevationId ? 'elevation' : 'internal'})`}
         placeholder={`e.g. ${prefix}1-${prefix}4, ${prefix}7`}
         value={text}
         disabled={locked}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => setWallLabelDraft(key, e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && text.trim() && add()}
       />
-      <button className="btn small" disabled={locked || !text.trim()} onClick={add}>
-        <IconAdd size={15} /> Add walls
+      <button className="btn small" disabled={locked || !text.trim()} onClick={add} title={missing.length ? `Adds ${missing.join(', ')}` : 'All these walls are already in the table'}>
+        <IconAdd size={15} /> Add walls{text.trim() && missing.length > 0 && missing.length !== labels.length ? ` (${missing.length} new)` : ''}
       </button>
     </div>
   );
 }
 
 export function WallsPanel() {
-  const { data, role } = useSession();
+  const { data, content, role } = useSession();
   if (!data) return null;
   const locked = role !== 'detailer';
-  const issues = wallIssues(data.walls).filter((i) => i.kind === 'label' || i.kind === 'placement');
-  const groups = [...data.elevations.map((e) => ({ id: e.id as string | null, name: e.name, front: e.frontFacade })), { id: null, name: 'Internal', front: false }];
+  const issues = [...wallIssues(data.walls).filter((i) => i.kind === 'label' || i.kind === 'placement'), ...loadBearingIssues(data)];
+  const front = usesFrontFacade(content, data);
+  const groups = [...data.elevations.map((e) => ({ id: e.id as string | null, name: e.name, front: front && e.frontFacade })), { id: null, name: 'Internal', front: false }];
   return (
     <section className="panel">
       <div className="panel-head">
         <h3>Wall panels by elevation ({data.walls.length})</h3>
-        <span className="hint">Type labels like “E1-E8” to add several at once. LB = load-bearing.</span>
+        <span className="hint">Type labels like “E1-E8” to add several at once. LB = load-bearing: external walls start ticked, internal walls unticked.</span>
       </div>
       {issues.length > 0 && (
         <div className="problems" style={{ marginBottom: 12 }}>
@@ -307,203 +320,3 @@ export function WallsPanel() {
   );
 }
 
-// ─── Stage 6: openings ───
-
-function OpeningCard({ o, locked }: { o: Opening; locked: boolean }) {
-  const { data, content, updateOpening, removeOpening } = useSession();
-  if (!data) return null;
-  const set = (patch: Partial<Opening>) => updateOpening(o.id, patch);
-  const calc = openingCalc(content, data, o);
-  const wall = data.walls.find((w) => w.id === o.wallId);
-  const head = itemState(data, 'op-head-height').values;
-  const headSuggest = (o.type === 'internal-door' || o.type === 'cavity-slider' || o.type === 'smart-robe' ? head.internal : head.whh) as string | undefined;
-  const dim = num(o.dimension);
-  const frameDim = o.position === 'dimension' && dim !== null && wall ? planToFrameDimension(dim, wall.finish) : null;
-  const pine = [pineLintelWarning(o.hyneTimber), pineLintelWarning(o.autobeamTimber)].find(Boolean);
-  const showLintel = calc.lintelNeeded || o.hyneTimber || o.autobeamTimber;
-  const width = calc.stud?.width ?? 0;
-
-  return (
-    <div className="opening-card">
-      <div className="opening-grid">
-        <div className="field">
-          <span className="label">Label</span>
-          <input className="input" aria-label="Opening label" value={o.label} disabled={locked} onChange={(e) => set({ label: e.target.value.toUpperCase() })} />
-        </div>
-        <div className="field">
-          <span className="label">Wall</span>
-          <select className="select" aria-label={`Wall for ${o.label}`} value={o.wallId ?? ''} disabled={locked} onChange={(e) => set({ wallId: e.target.value || null })}>
-            <option value="">Choose…</option>
-            {data.walls.map((w) => (
-              <option key={w.id} value={w.id}>{w.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field" style={{ gridColumn: 'span 2' }}>
-          <span className="label">Type</span>
-          <select className="select" aria-label={`Type of ${o.label}`} value={o.type} disabled={locked} onChange={(e) => set({ type: e.target.value as Opening['type'] })}>
-            {OPENING_TYPES.map((t) => (
-              <option key={t} value={t}>{content.allowances[t].label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <span className="label">Schedule height</span>
-          <NumberInput value={o.scheduleH} onChange={(v) => set({ scheduleH: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} schedule height`} />
-        </div>
-        <div className="field">
-          <span className="label">Schedule width</span>
-          <NumberInput value={o.scheduleW} onChange={(v) => set({ scheduleW: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} schedule width`} />
-        </div>
-        <div className="field">
-          <span className="label">Head height</span>
-          <NumberInput value={o.headHeight} onChange={(v) => set({ headHeight: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} head height`} />
-          {headSuggest && headSuggest !== o.headHeight && !locked && (
-            <div className="suggest">
-              Standard: <b>{headSuggest}</b>
-              <button className="btn small" onClick={() => set({ headHeight: headSuggest })}>Use this</button>
-            </div>
-          )}
-        </div>
-        <div className="field">
-          <span className="label">Position</span>
-          <select className="select" aria-label={`Position of ${o.label}`} value={o.position} disabled={locked} onChange={(e) => set({ position: e.target.value as Opening['position'] })}>
-            <option value="middle">Middle of wall</option>
-            <option value="dimension">From plan dimension</option>
-          </select>
-        </div>
-        {o.position === 'dimension' && (
-          <>
-            <div className="field">
-              <span className="label">Plan dimension</span>
-              <NumberInput value={o.dimension} onChange={(v) => set({ dimension: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} plan dimension`} />
-            </div>
-            <div className="field">
-              <span className="label">Side</span>
-              <div className="seg" role="group" aria-label={`Side of ${o.label}`}>
-                {(['left', 'right'] as const).map((s) => (
-                  <button key={s} type="button" className={o.side === s ? 'on' : ''} disabled={locked} onClick={() => set({ side: s })}>
-                    {s === 'left' ? 'Left' : 'Right'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-      {showLintel && (
-        <div className="opening-grid mt" style={{ marginTop: 10 }}>
-          <div className="field">
-            <span className="label">Hyne lintel</span>
-            <input className="input" aria-label={`${o.label} Hyne lintel`} placeholder="e.g. 190x45 MGP10" value={o.hyneTimber} disabled={locked} onChange={(e) => set({ hyneTimber: e.target.value })} />
-          </div>
-          <div className="field">
-            <span className="label">Hyne deflection</span>
-            <NumberInput value={o.hyneDeflection} onChange={(v) => set({ hyneDeflection: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} Hyne deflection`} />
-          </div>
-          <div className="field">
-            <span className="label">Autobeam lintel</span>
-            <input className="input" aria-label={`${o.label} Autobeam lintel`} value={o.autobeamTimber} disabled={locked} onChange={(e) => set({ autobeamTimber: e.target.value })} />
-          </div>
-          <div className="field">
-            <span className="label">Autobeam deflection</span>
-            <NumberInput value={o.autobeamDeflection} onChange={(v) => set({ autobeamDeflection: v })} unit="mm" disabled={locked} ariaLabel={`${o.label} Autobeam deflection`} />
-          </div>
-        </div>
-      )}
-      <div className="field mt" style={{ marginTop: 10 }}>
-        <input className="input" aria-label={`${o.label} note`} placeholder="Note (optional)" value={o.note} disabled={locked} onChange={(e) => set({ note: e.target.value })} />
-      </div>
-      <div className="opening-out">
-        <span>
-          Stud opening:{' '}
-          {calc.stud ? (
-            <b className="ok-text" style={{ color: 'var(--mitek-blue)' }}>
-              {calc.stud.height} H × {calc.stud.width} W
-            </b>
-          ) : (
-            <span className="muted">enter the schedule size</span>
-          )}
-        </span>
-        {calc.stud && <span className="hint">{calc.stud.reasons.join(' · ')}</span>}
-        {calc.stud && wall && !wall.loadBearing && <span className="hint">Trimmer: {trimmerRule(width, false)}</span>}
-        {calc.stud && wall?.loadBearing && <span className="hint">Load-bearing wall — lintel by Hyne / Autobeam</span>}
-        {frameDim && (
-          <span>
-            Frame dimension: <b>{frameDim.min === frameDim.max ? frameDim.min : `${frameDim.min}–${frameDim.max}`} mm</b> {o.side && `(${o.side})`}
-          </span>
-        )}
-        {calc.deflection.map((c, i) => (
-          <CheckPill key={`d${i}`} c={c} />
-        ))}
-        {pine && <CheckPill c={{ level: 'warn', message: pine }} />}
-        {calc.issues.map((c, i) => (
-          <CheckPill key={`i${i}`} c={c} />
-        ))}
-        <span style={{ flex: 1 }} />
-        <button className="btn ghost small danger" disabled={locked} onClick={() => window.confirm(`Delete opening ${o.label}?`) && removeOpening(o.id)}>
-          <IconDelete size={15} /> Delete
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export function OpeningsPanel() {
-  const { data, content, role, addOpening } = useSession();
-  if (!data) return null;
-  const locked = role !== 'detailer';
-  const builder = getBuilder(content, data.job.builderId);
-  const groups = [
-    ...data.elevations.map((e) => ({ key: e.id, name: e.name, walls: data.walls.filter((w) => w.elevationId === e.id), internal: false, front: e.frontFacade })),
-    { key: 'internal', name: 'Internal', walls: data.walls.filter((w) => w.elevationId === null), internal: true, front: false },
-  ];
-  const unassigned = data.openings.filter((o) => !data.walls.some((w) => w.id === o.wallId));
-  const nextLabel = (internal: boolean) => {
-    const prefix = internal ? 'D' : 'W';
-    const nums = data.openings.map((o) => new RegExp(`^${prefix}(\\d+)$`).exec(o.label)?.[1]).filter(Boolean).map(Number);
-    return `${prefix}${nums.length ? Math.max(...nums) + 1 : 1}`;
-  };
-  return (
-    <section className="panel">
-      <div className="panel-head">
-        <h3>Openings by elevation ({data.openings.length})</h3>
-        <span className="hint">Stud openings use the standard allowances{builder?.openingOverrides.length ? ` and ${builder.shortName} overrides` : ''}.</span>
-      </div>
-      {data.walls.length === 0 && (
-        <div className="problems" style={{ marginBottom: 12 }}>
-          <IconWarn size={14} /> Add wall panels in “Wall Panels per Elevation” first — each opening belongs to a wall.
-        </div>
-      )}
-      {groups.map((g) => {
-        const list = data.openings.filter((o) => g.walls.some((w) => w.id === o.wallId));
-        return (
-          <div key={g.key} className="card card-pad" style={{ marginBottom: 12 }}>
-            <div className="panel-head">
-              <h3>
-                {g.name} {g.front && <span className="pill info">Front façade</span>}{' '}
-                <span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>
-                  Walls: {g.walls.map((w) => w.label).join(', ') || '—'} · Openings: {list.map((o) => o.label).join(', ') || '—'}
-                </span>
-              </h3>
-              <button className="btn small" disabled={locked || g.walls.length === 0} onClick={() => addOpening(nextLabel(g.internal), g.walls[0]?.id ?? null, g.internal)}>
-                <IconAdd size={15} /> Add opening
-              </button>
-            </div>
-            {list.map((o) => (
-              <OpeningCard key={o.id} o={o} locked={locked} />
-            ))}
-          </div>
-        );
-      })}
-      {unassigned.length > 0 && (
-        <div className="card card-pad">
-          <h3 className="warn-text" style={{ marginBottom: 8 }}>Openings without a wall</h3>
-          {unassigned.map((o) => (
-            <OpeningCard key={o.id} o={o} locked={locked} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}

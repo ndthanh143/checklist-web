@@ -3,19 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/logos/lawmans-icon.png" />
-    <title>Log in — Lawmans Smart Checklist</title>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/logos/smart-check-wall-icon.png" />
+    <link rel="apple-touch-icon" href="/logos/apple-touch-icon.png" />
+    <title>Log in — Smart Check Wall</title>
     <style>
-      :root { --blue: #0033a0; --red: #790000; --charcoal: #232323; --line: #d5dae1; --panel: #f3f5f7; --block: #c43d3d; }
+      :root { --blue: #0033a0; --green: #1f7a32; --timber: #d99a52; --timber-soft: #fbf3e8; --charcoal: #232323; --line: #d5dae1; --panel: #f3f5f7; --muted: #5b6470; }
       * { box-sizing: border-box; }
       body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--panel); font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; color: var(--charcoal); padding: 16px; }
-      .card { width: min(420px, 100%); background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: 10px; padding: 28px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); }
-      .logos { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
-      .logos .lawmans { height: 40px; }
-      .logos .mitek { height: 22px; }
-      .logos span { width: 1px; height: 30px; background: var(--line); }
-      h1 { font-size: 21px; margin: 0 0 4px; }
-      p { margin: 0 0 18px; color: #5b6470; font-size: 15px; }
+      .shell { display: grid; grid-template-columns: 1fr 420px; width: min(880px, 100%); background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07); }
+      .art { background: var(--timber-soft); border-right: 1px solid #f0e2cf; padding: 28px; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+      .art img { width: 100%; height: auto; display: block; }
+      .art p { margin: 0; color: #7a5a30; font-size: 14px; line-height: 1.45; }
+      .card { padding: 30px 32px; border-top: 4px solid var(--blue); }
+      .partners { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+      .partners img { height: 30px; width: auto; }
+      .partners span { width: 1px; height: 28px; background: var(--line); }
+      .app-logo { display: block; width: 220px; max-width: 100%; height: auto; margin: 0 0 8px; }
+      p.lead { margin: 0 0 18px; color: var(--muted); font-size: 15px; }
       label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
       input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid #b7bec8; border-radius: 6px; }
       input:focus-visible, button:focus-visible { outline: 3px solid #7aa2ff; outline-offset: 2px; }
@@ -23,24 +28,34 @@
       button:hover { background: #00267a; }
       .error { display: none; margin-top: 12px; padding: 9px 12px; border-radius: 6px; background: #fbeaea; color: #7a1f1f; font-size: 14px; }
       .error.show { display: block; }
+      @media (max-width: 760px) {
+        .shell { grid-template-columns: 1fr; width: min(440px, 100%); }
+        .art { display: none; }
+      }
     </style>
   </head>
   <body>
-    <main class="card">
-      <div class="logos">
-        <img class="lawmans" src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
-        <span></span>
-        <img class="mitek" src="/logos/mitek.png" alt="MiTek" />
-      </div>
-      <h1>Smart Checklist</h1>
-      <p>Enter the team password to continue.</p>
-      <form method="post" action="/api/login">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
-        <div id="error" class="error" role="alert">That password is not right. Please try again.</div>
-        <button type="submit">Log in</button>
-      </form>
-    </main>
+    <div class="shell">
+      <aside class="art" aria-hidden="true">
+        <img src="/illustrations/wall-frame.svg" alt="" />
+        <p>Wall frame detailing checklist for MiTek 20/20 — step by step, builder by builder.</p>
+      </aside>
+      <main class="card">
+        <div class="partners">
+          <img src="/logos/mitek.png" alt="MiTek" />
+          <span></span>
+          <img src="/logos/lawmans.png" alt="Lawmans Frame & Truss" />
+        </div>
+        <h1 style="margin: 0"><img class="app-logo" src="/logos/smart-check-wall.png" alt="Smart Check Wall" /></h1>
+        <p class="lead">Enter the team password to continue.</p>
+        <form method="post" action="/api/login">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+          <div id="error" class="error" role="alert">That password is not right. Please try again.</div>
+          <button type="submit">Log in</button>
+        </form>
+      </main>
+    </div>
     <script>
       if (new URLSearchParams(location.search).has('error')) document.getElementById('error').classList.add('show');
     </script>

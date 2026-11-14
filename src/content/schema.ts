@@ -1,21 +1,47 @@
 import { z } from 'zod';
-import { CONDITION_KEYS, FLOOR_KINDS, HOUSE_TYPES, OPENING_TYPES, STAGE_IDS, SUGGEST_KEYS, WIDGET_KEYS } from './types.js';
-import type { ChecklistContent } from './types.js';
-import { STATUSES } from '../job/types.js';
+import {
+  CONDITION_KEYS,
+  DEFAULT_NOG_TABLE,
+  DEFAULT_OPENING_FRAMING,
+  FIELD_KINDS,
+  FLOOR_KINDS,
+  HOUSE_TYPES,
+  OPENING_TYPE_LABELS,
+  OPENING_TYPES,
+  STAGE_IDS,
+  SUGGEST_KEYS,
+  WIDGET_KEYS,
+} from './types.js';
+import type { Allowance, ChecklistContent, OpeningType } from './types.js';
+import { DETAILING_METHODS, LINTEL_MODES, OPENING_POSITIONS, STATUSES } from '../job/types.js';
 import type { JobData } from '../job/types.js';
 
 // ─── Content (rules) ───
 
+const columnSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  kind: z.enum(['text', 'number', 'select']),
+  unit: z.string().optional(),
+  options: z.array(z.string()).optional(),
+  placeholder: z.string().optional(),
+  required: z.boolean().optional(),
+});
+
 const fieldSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
-  kind: z.enum(['text', 'number', 'select', 'checks', 'textarea']),
+  kind: z.enum(FIELD_KINDS),
   unit: z.string().optional(),
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
   suggest: z.enum(SUGGEST_KEYS).optional(),
   required: z.boolean().optional(),
   requireAll: z.boolean().optional(),
+  columns: z.array(columnSchema).optional(),
+  addLabel: z.string().optional(),
+  showWhen: z.object({ field: z.string(), includes: z.string() }).optional(),
+  hint: z.string().optional(),
 });
 
 const itemSchema = z.object({
@@ -43,6 +69,8 @@ const itemSchema = z.object({
     })
     .optional(),
   tips: z.array(z.object({ job: z.string(), text: z.string() })).optional(),
+  showAbovePanel: z.boolean().optional(),
+  checkerFocus: z.boolean().optional(),
 });
 
 const builderSchema = z.object({
@@ -71,6 +99,8 @@ const builderSchema = z.object({
     }),
   ),
   notes: z.array(z.string()),
+  usesFrontFacade: z.boolean().optional(),
+  internalDoorCornerGap: z.union([z.literal(70), z.literal(90)]).optional(),
 });
 
 const allowanceSchema = z.object({
@@ -90,10 +120,25 @@ export const contentSchema = z
     ),
     items: z.array(itemSchema),
     builders: z.array(builderSchema),
-    allowances: z.record(z.enum(OPENING_TYPES), allowanceSchema),
+    // Rules saved before an opening type existed get a zero allowance for it.
+    allowances: z.partialRecord(z.enum(OPENING_TYPES), allowanceSchema).transform((a) => {
+      const out = {} as Record<OpeningType, Allowance>;
+      for (const t of OPENING_TYPES) out[t] = a[t] ?? { label: OPENING_TYPE_LABELS[t], width: 0, height: 0 };
+      return out;
+    }),
     lintelTable: z.array(
       z.object({ minWidth: z.number(), maxWidth: z.number(), minDeflection: z.number(), maxDeflection: z.number() }),
     ),
+    nogTable: z.array(z.object({ wallHeight: z.number(), height: z.number(), centres: z.number() })).default(DEFAULT_NOG_TABLE),
+    openingFraming: z
+      .object({
+        lintelThreshold: z.number(),
+        withLintel: z.object({ trimmer: z.string(), jamb: z.string(), prop: z.string() }),
+        noLintel: z.object({ trimmer: z.string(), jamb: z.string(), jambCorner90: z.string(), jambCorner70: z.string() }),
+        trimmerOptions: z.array(z.string()),
+        doubleLintels: z.array(z.string()),
+      })
+      .default(DEFAULT_OPENING_FRAMING),
   })
   .superRefine((c, ctx) => {
     const seen = new Set<string>();
@@ -117,7 +162,7 @@ export function parseContent(data: unknown): ChecklistContent {
 
 // ─── Job file (.chck) ───
 
-const fieldValue = z.union([z.string(), z.array(z.string())]);
+const fieldValue = z.union([z.string(), z.array(z.string()), z.array(z.record(z.string(), z.string()))]);
 
 export const jobDataSchema = z.object({
   format: z.literal('lawmans-chck'),
@@ -167,7 +212,7 @@ export const jobDataSchema = z.object({
       scheduleH: z.string(),
       scheduleW: z.string(),
       headHeight: z.string(),
-      position: z.enum(['middle', 'dimension']),
+      position: z.enum(OPENING_POSITIONS),
       dimension: z.string(),
       side: z.enum(['left', 'right', '']),
       hyneTimber: z.string(),
@@ -175,8 +220,18 @@ export const jobDataSchema = z.object({
       autobeamTimber: z.string(),
       autobeamDeflection: z.string(),
       note: z.string(),
+      // Added in v2 — older files get the defaults.
+      trimmer: z.string().default(''),
+      lintelMode: z.enum(LINTEL_MODES).default('designed'),
+      methods: z.array(z.enum(DETAILING_METHODS)).default([]),
+      trimmerPlus: z.enum(['', '+30', '+25', '+20']).default(''),
+      underGirder: z.boolean().default(false),
+      criticalStud: z.string().default(''),
+      criticalDeflection: z.string().default(''),
+      frontBrickVeneer: z.boolean().nullable().default(null),
     }),
   ),
+  wallLabelDrafts: z.record(z.string(), z.string()).default({}),
   review: z.object({
     requiredChecks: z.union([z.literal(1), z.literal(2)]),
     rounds: z.array(
@@ -198,9 +253,23 @@ export const jobDataSchema = z.object({
         response: z.string().optional(),
       }),
     ),
+    focusChecks: z.record(z.string(), z.object({ by: z.string(), at: z.string() })).default({}),
   }),
 });
 
 export function parseJobData(data: unknown): JobData {
-  return jobDataSchema.parse(data) as JobData;
+  return migrateJobData(jobDataSchema.parse(data) as JobData);
+}
+
+/** Moves values saved by older versions of the checklist to their new place. */
+export function migrateJobData(d: JobData): JobData {
+  // v2: step-down areas became a table (one row per area).
+  const sd = d.items['wi-step-down'];
+  if (sd && typeof sd.values.areas === 'string') {
+    const { areas, labels, depth, ...rest } = sd.values;
+    const row = { area: String(areas ?? ''), labels: typeof labels === 'string' ? labels : '', depth: typeof depth === 'string' ? depth : '' };
+    const hasData = row.area || row.labels || row.depth;
+    d = { ...d, items: { ...d.items, 'wi-step-down': { ...sd, values: { ...rest, ...(hasData ? { areas: [row] } : {}) } } } };
+  }
+  return d;
 }

@@ -6,6 +6,7 @@ import { BuilderLogo } from './common';
 import { beginOpen, pickJobFile, readJobFile, usePendingOpen } from './fileActions';
 import { IconEdit, IconGuide, IconNext, IconOpen, IconWarn } from './icons';
 import { OpenDialog } from './OpenDialog';
+import { PartnerLogos } from './TopBar';
 
 export function Home({ onNewJob }: { onNewJob: (builderId: string) => void }) {
   const { content, data, go } = useSession();
@@ -40,10 +41,16 @@ export function Home({ onNewJob }: { onNewJob: (builderId: string) => void }) {
 
       <section className="home-hero">
         <div className="stack">
-          <h1>Wall frame checklist</h1>
-          <p className="muted" style={{ fontSize: 16 }}>
-            Choose the builder to start a new checklist. The checklist follows the MiTek 20/20 detailing steps and shows only what applies to your job.
-          </p>
+          <div className="hero-text">
+            <div className="stack">
+              <h1>Wall frame checklist</h1>
+              <p className="muted" style={{ fontSize: 16 }}>
+                Choose the builder to start a new checklist. The checklist follows the MiTek 20/20 detailing steps and shows only what applies to your job.
+              </p>
+              <PartnerLogos className="large" />
+            </div>
+            <img className="hero-art" src="/illustrations/wall-frame.svg" alt="" aria-hidden="true" />
+          </div>
           <div className="notice">
             <IconWarn size={20} />
             <div>

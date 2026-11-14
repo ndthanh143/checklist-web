@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { AppliesWhen, ChecklistContent, ChecklistItem, FieldDef, FieldKind, StageId } from '../content/types';
-import { CONDITION_KEYS, CONDITION_LABELS, FLOOR_KINDS, FLOOR_LABELS, HOUSE_TYPES, HOUSE_TYPE_LABELS, SUGGEST_KEYS, WIDGET_KEYS } from '../content/types';
+import type { AppliesWhen, ChecklistContent, ChecklistItem, FieldDef, FieldKind, RowColumn, StageId } from '../content/types';
+import { CONDITION_KEYS, CONDITION_LABELS, FIELD_KINDS, FLOOR_KINDS, FLOOR_LABELS, HOUSE_TYPES, HOUSE_TYPE_LABELS, SUGGEST_KEYS, WIDGET_KEYS } from '../content/types';
 import { emptyConditions } from '../job/factory';
 import type { JobInfo } from '../job/types';
 import { uid } from '../lib/hash';
@@ -18,7 +18,86 @@ const WIDGET_LABELS: Record<(typeof WIDGET_KEYS)[number], string> = {
   'bracing-capacity': 'Bracing shortfall (designed − detailed)',
   'tie-down': 'Tie-down (RLW, uplift, per stud)',
   'address-preview': 'Frame layout address label',
+  'opening-notes': 'Notes needed by the openings (detailing methods)',
+  'girder-openings': 'Openings marked “Under girder”',
 };
+
+const KIND_LABELS: Record<FieldKind, string> = {
+  text: 'Text',
+  number: 'Number',
+  select: 'Choose one',
+  checks: 'Tick list',
+  textarea: 'Long text',
+  rows: 'Table (rows with “+ Add”)',
+  photos: 'Pictures / screenshots',
+};
+
+function lines(text: string): string[] {
+  return text.split('\n').map((s) => s.trim()).filter(Boolean);
+}
+
+function ColumnsEditor({ columns, onChange }: { columns: RowColumn[]; onChange: (c: RowColumn[]) => void }) {
+  const set = (i: number, patch: Partial<RowColumn>) => onChange(columns.map((c, n) => (n === i ? { ...c, ...patch } : c)));
+  const add = () => {
+    const ids = new Set(columns.map((c) => c.id));
+    let id = 'col';
+    for (let n = 2; ids.has(id); n++) id = `col-${n}`;
+    onChange([...columns, { id, label: 'New column', kind: 'text' }]);
+  };
+  return (
+    <div className="stack" style={{ marginTop: 8 }}>
+      <span className="label">Table columns</span>
+      {columns.map((c, i) => (
+        <div key={c.id} className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="field" style={{ flex: 2, minWidth: 160 }}>
+            <span className="hint">Column name (id: {c.id})</span>
+            <input className="input" value={c.label} onChange={(e) => set(i, { label: e.target.value })} />
+          </div>
+          <div className="field" style={{ flex: 1, minWidth: 120 }}>
+            <span className="hint">Type</span>
+            <select className="select" value={c.kind} onChange={(e) => set(i, { kind: e.target.value as RowColumn['kind'] })}>
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="select">Choose one</option>
+            </select>
+          </div>
+          {c.kind === 'number' && (
+            <div className="field" style={{ width: 80 }}>
+              <span className="hint">Unit</span>
+              <input className="input" value={c.unit ?? ''} onChange={(e) => set(i, { unit: e.target.value || undefined })} />
+            </div>
+          )}
+          {c.kind === 'select' && (
+            <div className="field" style={{ flex: 2, minWidth: 180 }}>
+              <span className="hint">Choices (comma separated)</span>
+              <input
+                className="input"
+                defaultValue={(c.options ?? []).join(', ')}
+                onBlur={(e) => set(i, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+              />
+            </div>
+          )}
+          <div className="field" style={{ flex: 2, minWidth: 160 }}>
+            <span className="hint">Example text</span>
+            <input className="input" value={c.placeholder ?? ''} onChange={(e) => set(i, { placeholder: e.target.value || undefined })} />
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked || undefined })} />
+            <span>Required</span>
+          </label>
+          <button className="btn small danger" aria-label={`Remove column ${c.label}`} onClick={() => onChange(columns.filter((_, n) => n !== i))}>
+            <IconDelete size={14} />
+          </button>
+        </div>
+      ))}
+      <div>
+        <button className="btn small" onClick={add}>
+          <IconAdd size={14} /> Add column
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const SUGGEST_LABELS: Record<(typeof SUGGEST_KEYS)[number], string> = {
   'builder.stud': 'Builder: stud',
@@ -63,6 +142,36 @@ function Checklist<T extends string>({ label, all, labels, value, onChange, hint
   );
 }
 
+/** "Show this box only when …" — picks a tick-list box of the same item and one of its lines. */
+function ShowWhenEditor({ field, fields, onChange }: { field: FieldDef; fields: FieldDef[]; onChange: (w: FieldDef['showWhen']) => void }) {
+  const tickLists = fields.filter((x) => x.kind === 'checks' && x.id !== field.id);
+  if (tickLists.length === 0) return null;
+  const value = field.showWhen ? `${field.showWhen.field}::${field.showWhen.includes}` : '';
+  return (
+    <div className="field">
+      <span className="label">Show this box only when ticked</span>
+      <select
+        className="select"
+        value={value}
+        onChange={(e) => {
+          if (!e.target.value) return onChange(undefined);
+          const [fid, ...rest] = e.target.value.split('::');
+          onChange({ field: fid, includes: rest.join('::') });
+        }}
+      >
+        <option value="">Always show</option>
+        {tickLists.flatMap((t) =>
+          (t.options ?? []).map((o) => (
+            <option key={`${t.id}::${o}`} value={`${t.id}::${o}`}>
+              {t.label}: {o}
+            </option>
+          )),
+        )}
+      </select>
+    </div>
+  );
+}
+
 function FieldsEditor({ fields, onChange }: { fields: FieldDef[]; onChange: (f: FieldDef[]) => void }) {
   const set = (i: number, patch: Partial<FieldDef>) => onChange(fields.map((f, n) => (n === i ? { ...f, ...patch } : f)));
   const move = (i: number, d: number) => {
@@ -90,12 +199,19 @@ function FieldsEditor({ fields, onChange }: { fields: FieldDef[]; onChange: (f: 
             </div>
             <div className="field">
               <span className="label">Type</span>
-              <select className="select" value={f.kind} onChange={(e) => set(i, { kind: e.target.value as FieldKind })}>
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="select">Choose one</option>
-                <option value="checks">Tick list</option>
-                <option value="textarea">Long text</option>
+              <select
+                className="select"
+                value={f.kind}
+                onChange={(e) => {
+                  const kind = e.target.value as FieldKind;
+                  set(i, kind === 'rows' && !f.columns?.length ? { kind, columns: [{ id: 'value', label: 'Value', kind: 'text' }] } : { kind });
+                }}
+              >
+                {FIELD_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {KIND_LABELS[k]}
+                  </option>
+                ))}
               </select>
             </div>
             {f.kind === 'number' && (
@@ -126,15 +242,31 @@ function FieldsEditor({ fields, onChange }: { fields: FieldDef[]; onChange: (f: 
                 rows={Math.max(3, (f.options ?? []).length + 1)}
                 value={(f.options ?? []).join('\n')}
                 onChange={(e) => set(i, { options: e.target.value.split('\n').map((s) => s.trimStart()).filter((s, n, a) => s !== '' || n === a.length - 1) })}
-                onBlur={(e) => set(i, { options: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
+                onBlur={(e) => set(i, { options: lines(e.target.value) })}
               />
             </div>
           )}
+          {f.kind === 'rows' && (
+            <>
+              <ColumnsEditor columns={f.columns ?? []} onChange={(columns) => set(i, { columns })} />
+              <div className="field" style={{ marginTop: 8, maxWidth: 320 }}>
+                <span className="label">Add button text</span>
+                <input className="input" value={f.addLabel ?? ''} placeholder="Add row" onChange={(e) => set(i, { addLabel: e.target.value || undefined })} />
+              </div>
+            </>
+          )}
+          <div className="field-row" style={{ marginTop: 8 }}>
+            <div className="field">
+              <span className="label">Hint under the box (optional)</span>
+              <input className="input" value={f.hint ?? ''} onChange={(e) => set(i, { hint: e.target.value || undefined })} />
+            </div>
+            <ShowWhenEditor field={f} fields={fields} onChange={(showWhen) => set(i, { showWhen })} />
+          </div>
           <div className="row" style={{ marginTop: 8 }}>
             {f.kind !== 'checks' && (
               <label className="check">
                 <input type="checkbox" checked={!!f.required} onChange={(e) => set(i, { required: e.target.checked || undefined })} />
-                <span>Must be filled before “Done”</span>
+                <span>{f.kind === 'rows' ? 'At least one row before “Done”' : f.kind === 'photos' ? 'At least one picture before “Done”' : 'Must be filled before “Done”'}</span>
               </label>
             )}
             {f.kind === 'checks' && (
@@ -212,6 +344,16 @@ function ItemForm({ item, content, update }: { item: ChecklistItem; content: Che
           </label>
           <textarea id="it-detail" className="textarea" style={{ minHeight: 110 }} value={item.detail ?? ''} onChange={(e) => set({ detail: e.target.value || undefined })} />
           <span className="hint">Start a line with “- ” to make a bullet point.</span>
+        </div>
+        <div className="row">
+          <label className="check">
+            <input type="checkbox" checked={!!item.checkerFocus} onChange={(e) => set({ checkerFocus: e.target.checked || undefined })} />
+            <span>Checker focus — highlight this item for the checker during review</span>
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={!!item.showAbovePanel} onChange={(e) => set({ showAbovePanel: e.target.checked || undefined })} />
+            <span>Show at the top of the stage (above the table)</span>
+          </label>
         </div>
         <span className="hint">Item id: {item.id}</span>
       </section>
@@ -293,7 +435,7 @@ function ItemForm({ item, content, update }: { item: ChecklistItem; content: Che
           <textarea className="textarea" value={ref.text ?? ''} onChange={(e) => setRef({ text: e.target.value || undefined })} />
         </div>
         <div className="field">
-          <span className="label">Images (one path per line, e.g. /spec/step-down-note-1.png)</span>
+          <span className="label">Images (one path per line, e.g. /spec/step-down-note-1.png — add a caption after “ | ”, e.g. /spec/post-case-1-plan.png | Case 1 — Plan)</span>
           <textarea
             className="textarea"
             style={{ minHeight: 50 }}

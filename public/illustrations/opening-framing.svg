@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 380" role="img" aria-label="How an opening is framed: ribbon plate, top plate, lintel, trimmer, jamb stud, prop stud, sill, nogging, bottom plate">
+  <style>
+    .m { stroke: #b9793a; stroke-width: 1.5; }
+    .w { fill: #e6ae6d; }
+    .l { fill: #cf8f4a; }
+    .lab { font: 600 13px 'Segoe UI', Arial, sans-serif; fill: #232323; }
+    .sub { font: 400 11.5px 'Segoe UI', Arial, sans-serif; fill: #5b6470; }
+    .lead { stroke: #5b6470; stroke-width: 1.2; fill: none; }
+    .dot { fill: #5b6470; }
+  </style>
+  <rect width="640" height="380" fill="#fffdf9"/>
+  <g transform="translate(110 20)">
+    <!-- ribbon plate + top plate -->
+    <rect class="m w" x="0" y="0" width="420" height="12" rx="2"/>
+    <rect class="m w" x="0" y="12" width="420" height="12" rx="2"/>
+    <!-- bottom plate -->
+    <rect class="m w" x="0" y="318" width="420" height="14" rx="2"/>
+    <!-- common studs -->
+    <rect class="m w" x="0" y="24" width="12" height="294"/>
+    <rect class="m w" x="60" y="24" width="12" height="294"/>
+    <rect class="m w" x="348" y="24" width="12" height="294"/>
+    <rect class="m w" x="408" y="24" width="12" height="294"/>
+    <!-- jamb studs -->
+    <rect class="m w" x="110" y="24" width="12" height="294"/>
+    <rect class="m w" x="298" y="24" width="12" height="294"/>
+    <!-- lintel -->
+    <rect class="m l" x="122" y="24" width="176" height="44" rx="2"/>
+    <!-- prop studs -->
+    <rect class="m w" x="122" y="68" width="10" height="250"/>
+    <rect class="m w" x="288" y="68" width="10" height="250"/>
+    <!-- overs -->
+    <rect class="m w" x="180" y="68" width="10" height="26"/>
+    <rect class="m w" x="232" y="68" width="10" height="26"/>
+    <!-- trimmer (opening head) -->
+    <rect class="m w" x="132" y="94" width="156" height="12"/>
+    <!-- sill trimmer -->
+    <rect class="m w" x="132" y="226" width="156" height="12"/>
+    <!-- unders -->
+    <rect class="m w" x="180" y="238" width="10" height="80"/>
+    <rect class="m w" x="232" y="238" width="10" height="80"/>
+    <!-- noggings -->
+    <rect class="m w" x="12" y="170" width="48" height="10"/>
+    <rect class="m w" x="72" y="180" width="38" height="10"/>
+    <rect class="m w" x="310" y="180" width="38" height="10"/>
+    <rect class="m w" x="360" y="170" width="48" height="10"/>
+    <!-- opening -->
+    <rect x="132" y="106" width="156" height="120" fill="#e6f1fb" stroke="#9cc3e6" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="210" y="160" text-anchor="middle" class="sub">Stud opening</text>
+    <text x="210" y="176" text-anchor="middle" class="sub">(schedule size + allowance)</text>
+  </g>
+
+  <!-- labels: left side -->
+  <g>
+    <text x="10" y="18" class="lab">Ribbon plate</text>
+    <path class="lead" d="M94 14 H128 L150 26"/><circle class="dot" cx="150" cy="26" r="2.5"/>
+    <text x="10" y="52" class="lab">Top plate</text>
+    <path class="lead" d="M74 48 H128 L150 38"/><circle class="dot" cx="150" cy="38" r="2.5"/>
+    <text x="10" y="120" class="lab">Jamb stud</text>
+    <text x="10" y="134" class="sub">full height, each side</text>
+    <path class="lead" d="M76 116 H226"/><circle class="dot" cx="226" cy="116" r="2.5"/>
+    <text x="10" y="196" class="lab">Nogging</text>
+    <path class="lead" d="M66 192 H150"/><circle class="dot" cx="150" cy="195" r="2.5"/>
+    <text x="10" y="290" class="lab">Prop stud</text>
+    <text x="10" y="304" class="sub">holds up the lintel</text>
+    <path class="lead" d="M76 286 H237"/><circle class="dot" cx="237" cy="286" r="2.5"/>
+    <text x="10" y="362" class="lab">Bottom plate</text>
+    <path class="lead" d="M96 358 H150 V346"/><circle class="dot" cx="150" cy="345" r="2.5"/>
+  </g>
+  <!-- labels: right side -->
+  <g>
+    <text x="548" y="56" class="lab">Lintel</text>
+    <text x="548" y="70" class="sub">Hyne / Autobeam</text>
+    <path class="lead" d="M544 52 H380"/><circle class="dot" cx="380" cy="52" r="2.5"/>
+    <text x="548" y="108" class="lab">Overs</text>
+    <path class="lead" d="M544 104 H347"/><circle class="dot" cx="347" cy="104" r="2.5"/>
+    <text x="548" y="134" class="lab">Trimmer</text>
+    <text x="548" y="148" class="sub">opening head</text>
+    <path class="lead" d="M544 130 H390"/><circle class="dot" cx="390" cy="120" r="2.5"/>
+    <path class="lead" d="M390 130 V120"/>
+    <text x="548" y="258" class="lab">Sill</text>
+    <path class="lead" d="M544 254 H390"/><circle class="dot" cx="390" cy="252" r="2.5"/>
+    <text x="548" y="300" class="lab">Unders</text>
+    <path class="lead" d="M544 296 H347"/><circle class="dot" cx="347" cy="296" r="2.5"/>
+  </g>
+</svg>

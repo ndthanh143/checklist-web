@@ -23,11 +23,15 @@ export function newElevation(name: string): Elevation {
   return { id: uid('el_'), name, frontFacade: false };
 }
 
-export function newWall(label: string, elevationId: string | null): Wall {
-  return { id: uid('w_'), label, elevationId, finish: elevationId ? 'brick-veneer' : 'other', loadBearing: false, length: '', height: '' };
+/**
+ * External walls (under an elevation) start as load-bearing; internal walls start as
+ * non-load-bearing unless `loadBearing` says otherwise. The detailer can change both.
+ */
+export function newWall(label: string, elevationId: string | null, loadBearing = elevationId !== null): Wall {
+  return { id: uid('w_'), label, elevationId, finish: elevationId ? 'brick-veneer' : 'other', loadBearing, length: '', height: '' };
 }
 
-export function newOpening(label: string, wallId: string | null, internal: boolean): Opening {
+export function newOpening(label: string, wallId: string | null, internal: boolean, position: Opening['position'] = 'middle'): Opening {
   return {
     id: uid('o_'),
     label,
@@ -36,7 +40,7 @@ export function newOpening(label: string, wallId: string | null, internal: boole
     scheduleH: '',
     scheduleW: '',
     headHeight: '',
-    position: 'middle',
+    position,
     dimension: '',
     side: '',
     hyneTimber: '',
@@ -44,6 +48,14 @@ export function newOpening(label: string, wallId: string | null, internal: boole
     autobeamTimber: '',
     autobeamDeflection: '',
     note: '',
+    trimmer: '',
+    lintelMode: 'designed',
+    methods: [],
+    trimmerPlus: '',
+    underGirder: false,
+    criticalStud: '',
+    criticalDeflection: '',
+    frontBrickVeneer: null,
   };
 }
 
@@ -64,8 +76,9 @@ export function newJobData(job: JobInfo): JobData {
     items: {},
     elevations: ELEVATION_NAMING.numbered.map(newElevation),
     walls: [],
+    wallLabelDrafts: {},
     openings: [],
-    review: { requiredChecks: 1, rounds: [], entries: [] },
+    review: { requiredChecks: 1, rounds: [], entries: [], focusChecks: {} },
   };
 }
 

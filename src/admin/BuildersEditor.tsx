@@ -48,6 +48,17 @@ function BuilderForm({ b, content, update }: { b: Builder; content: ChecklistCon
           <input type="checkbox" checked={b.active} onChange={(e) => set({ active: e.target.checked })} />
           <span>Show this builder on the home page</span>
         </label>
+        <label className="check">
+          <input type="checkbox" checked={!!b.usesFrontFacade} onChange={(e) => set({ usesFrontFacade: e.target.checked || undefined })} />
+          <span>Has front-façade rules (shows the front façade column in Elevations and the “Front elevation brick veneer” option on openings)</span>
+        </label>
+        <div className="field" style={{ maxWidth: 420 }}>
+          <span className="label">Internal door openings from wall corners</span>
+          <select className="select" value={b.internalDoorCornerGap ?? 70} onChange={(e) => set({ internalDoorCornerGap: Number(e.target.value) === 90 ? 90 : undefined })}>
+            <option value={70}>70 mm (standard — builder does not say)</option>
+            <option value={90}>90 mm (builder asks for 90 mm)</option>
+          </select>
+        </div>
         <span className="hint">Builder id: {b.id}</span>
       </section>
       <section className="card card-pad stack">

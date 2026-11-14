@@ -3,7 +3,18 @@ import { readCookie, SESSION_COOKIE, verifySessionToken } from './session.js';
 
 // Everything except the login page needs a valid session cookie, including the app's
 // JavaScript and the checklist rules, so nothing is readable before logging in.
-export const PUBLIC_PATHS = new Set(['/login', '/login.html', '/api/login', '/logos/lawmans.png', '/logos/mitek.png', '/logos/lawmans-icon.png', '/favicon.ico']);
+export const PUBLIC_PATHS = new Set([
+  '/login',
+  '/login.html',
+  '/api/login',
+  '/logos/lawmans.png',
+  '/logos/mitek.png',
+  '/logos/smart-check-wall.png',
+  '/logos/smart-check-wall-icon.png',
+  '/logos/apple-touch-icon.png',
+  '/illustrations/wall-frame.svg',
+  '/favicon.ico',
+]);
 
 /** Returns a response that blocks the request, or null when the request may continue. */
 export async function gate(request: Request, env: ServerEnv): Promise<Response | null> {

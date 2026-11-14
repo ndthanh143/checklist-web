@@ -1,10 +1,12 @@
-import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
+import type { Column, Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import type { ChecklistContent, ChecklistItem, FieldDef } from '../content/types';
 import { CONDITION_KEYS, CONDITION_LABELS, FLOOR_LABELS, HOUSE_TYPE_LABELS } from '../content/types';
-import type { JobData, Photo, ReviewEntry } from '../job/types';
+import type { FieldValue, JobData, Opening, Photo, ReviewEntry } from '../job/types';
 import { STATUS_LABELS } from '../job/types';
 import { addressLabel, planToFrameDimension, num } from './calc';
-import { getBuilder, itemState, openingCalc, visibleItems, wallIssues } from './rules';
+import { focusPointsFor } from './focus';
+import { METHOD_INFO } from './openings';
+import { getBuilder, isFieldVisible, itemState, listValue, loadBearingIssues, openingCalc, rowsValue, usesFrontFacade, visibleItems, wallIssues, type OpeningCalc } from './rules';
 
 export type PdfMode = 'draft' | 'final';
 
@@ -37,13 +39,50 @@ function fmtDate(iso?: string): string {
   return d.toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function fieldText(f: FieldDef, v: string | string[] | undefined): string | null {
+function fieldText(f: FieldDef, v: FieldValue | undefined): string | null {
   if (f.kind === 'checks') {
-    const ticked = Array.isArray(v) ? v : [];
+    const ticked = listValue(v);
     return (f.options ?? []).map((o) => `${ticked.includes(o) ? '[x]' : '[  ]'} ${o}`).join('\n');
   }
+  if (f.kind === 'rows') {
+    const rows = rowsValue(v);
+    if (rows.length === 0) return null;
+    const cols = f.columns ?? [];
+    const lines = rows.map(
+      (r) =>
+        '- ' +
+        cols
+          .filter((c) => (r[c.id] ?? '').trim())
+          .map((c) => `${c.label}: ${r[c.id]}${c.unit ? ` ${c.unit}` : ''}`)
+          .join(' · '),
+    );
+    return `${f.label}:\n${lines.join('\n')}`;
+  }
+  if (f.kind === 'photos') {
+    const n = listValue(v).length;
+    return n ? `${f.label}: ${n} picture${n > 1 ? 's' : ''} (see appendix)` : null;
+  }
   if (v === undefined || (typeof v === 'string' && v.trim() === '')) return null;
-  return `${f.label}: ${Array.isArray(v) ? v.join(', ') : v}${f.unit ? ` ${f.unit}` : ''}`;
+  return `${f.label}: ${Array.isArray(v) ? listValue(v).join(', ') : v}${f.unit ? ` ${f.unit}` : ''}`;
+}
+
+/** Lintel, trimmer, studs, girder and detailing methods of one opening. */
+function framingText(o: Opening, calc: OpeningCalc): string {
+  const f = calc.framing;
+  const lines: string[] = [];
+  if (f?.lintel === 'none') lines.push('No lintel');
+  else if (f?.lintel === 'floor-system') lines.push('No suitable lintel — floor system');
+  if (o.hyneTimber) lines.push(`Hyne: ${o.hyneTimber}${o.hyneDeflection ? ` (${o.hyneDeflection} mm)` : ''}`);
+  if (o.autobeamTimber) lines.push(`Autobeam: ${o.autobeamTimber}${o.autobeamDeflection ? ` (${o.autobeamDeflection} mm)` : ''}`);
+  if (calc.lintelNeeded && !o.hyneTimber && !o.autobeamTimber) lines.push('Lintel: needed');
+  if (calc.trimmer) lines.push(`Trimmer: ${calc.trimmer}${o.methods.includes('trimmer-plus') && o.trimmerPlus ? ` ${o.trimmerPlus}` : ''}`);
+  if (f) lines.push(`Jamb: ${f.jamb}${f.jambCorner ? ` (corner ${f.jambCorner})` : ''} · Prop: ${f.prop ?? 'none'}`);
+  if (o.underGirder) lines.push(`Under girder — critical stud ${o.criticalStud || '?'} (${o.criticalDeflection || '?'} mm)`);
+  if (calc.frontBrickVeneer) lines.push('Front elevation brick veneer (+130, floating studs)');
+  const methods = o.methods.filter((m) => m !== 'trimmer-plus').map((m) => METHOD_INFO[m].label);
+  if (methods.length) lines.push(`Method: ${methods.join(', ')}`);
+  if (o.note) lines.push(`Note: ${o.note}`);
+  return lines.join('\n');
 }
 
 function statusColor(status: string): string {
@@ -68,7 +107,10 @@ function entryLines(entries: ReviewEntry[]): Content[] {
 
 function itemRow(item: ChecklistItem, data: JobData, builderId: string, mode: PdfMode, index: string): TableCell[] {
   const st = itemState(data, item.id);
-  const values = (item.fields ?? []).map((f) => fieldText(f, st.values[f.id])).filter((x): x is string => !!x);
+  const values = (item.fields ?? [])
+    .filter((f) => isFieldVisible(f, st))
+    .map((f) => fieldText(f, st.values[f.id]))
+    .filter((x): x is string => !!x);
   const note = item.builderNotes?.[builderId];
   const entries = data.review.entries.filter((e) => e.itemId === item.id);
   const cells: TableCell[] = [
@@ -88,7 +130,23 @@ function itemRow(item: ChecklistItem, data: JobData, builderId: string, mode: Pd
   return cells;
 }
 
-export function buildDocDefinition(content: ChecklistContent, data: JobData, photos: Photo[], mode: PdfMode, logoDataUrl?: string): TDocumentDefinitions {
+export interface PdfLogos {
+  mitek?: string;
+  lawmans?: string;
+}
+
+/** MiTek first, then Lawmans — same height so the two partners read as equals. */
+function logoRow(logos: PdfLogos): Column {
+  const cell = (src: string | undefined, fallback: string, color: string): Content =>
+    src ? { image: src, fit: [130, 30] } : { text: fallback, bold: true, color, fontSize: 12, margin: [0, 8, 0, 0] };
+  return {
+    width: 300,
+    columns: [cell(logos.mitek, 'MiTek', C.blue), cell(logos.lawmans, 'LAWMANS FRAME & TRUSS', C.red)],
+    columnGap: 14,
+  };
+}
+
+export function buildDocDefinition(content: ChecklistContent, data: JobData, photos: Photo[], mode: PdfMode, logos: PdfLogos = {}): TDocumentDefinitions {
   const builder = getBuilder(content, data.job.builderId);
   const floor = FLOOR_LABELS[data.job.floor];
   const yesConditions = CONDITION_KEYS.filter((k) => data.job.conditions[k]).map((k) => CONDITION_LABELS[k]);
@@ -97,7 +155,7 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
   // Header block
   body.push({
     columns: [
-      logoDataUrl ? { image: logoDataUrl, width: 150 } : { text: 'LAWMANS FRAME & TRUSS', color: C.red, bold: true, fontSize: 14 },
+      logoRow(logos),
       {
         stack: [
           { text: mode === 'draft' ? 'Checklist — DRAFT for review' : 'Checklist — Final report', fontSize: 15, bold: true, color: C.blue, alignment: 'right' },
@@ -130,12 +188,12 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
 
     if (stage.id === 'elevations') {
       body.push({
-        ul: data.elevations.map((e) => `${e.name}${e.frontFacade ? '  — front façade' : ''}`),
+        ul: data.elevations.map((e) => `${e.name}${e.frontFacade && usesFrontFacade(content, data) ? '  — front façade' : ''}`),
         margin: [0, 0, 0, 6],
       });
     }
     if (stage.id === 'wall-panels' && data.walls.length) {
-      const issues = wallIssues(data.walls);
+      const issues = [...wallIssues(data.walls), ...loadBearingIssues(data)];
       body.push({
         table: {
           headerRows: 1,
@@ -167,21 +225,21 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
           headerRows: 1,
           widths: [28, 28, 60, 48, 52, 30, 52, '*', '*'],
           body: [
-            ['Label', 'Wall', 'Type', 'Schedule H×W', 'Stud opening', 'Head', 'Position', 'Lintel', 'Checks'].map((t) => ({ text: t, style: 'th' })),
+            ['Label', 'Wall', 'Type', 'Schedule H×W', 'Stud opening', 'Head', 'Position', 'Lintel & framing', 'Checks'].map((t) => ({ text: t, style: 'th' })),
             ...data.openings.map((o) => {
               const wall = data.walls.find((w) => w.id === o.wallId);
               const calc = openingCalc(content, data, o);
               const pos =
                 o.position === 'middle'
                   ? 'Middle'
-                  : (() => {
+                  : o.position === 'corner90' || o.position === 'corner70'
+                    ? `${o.position === 'corner90' ? 90 : 70} mm from corner ${o.side}`
+                    : (() => {
                       const d = num(o.dimension);
                       const r = d !== null && wall ? planToFrameDimension(d, wall.finish) : null;
                       return `${o.dimension} ${o.side}${r ? ` (frame ${r.min === r.max ? r.min : `${r.min}–${r.max}`})` : ''}`;
                     })();
-              const lintel = [o.hyneTimber && `Hyne: ${o.hyneTimber}${o.hyneDeflection ? ` (${o.hyneDeflection} mm)` : ''}`, o.autobeamTimber && `Autobeam: ${o.autobeamTimber}${o.autobeamDeflection ? ` (${o.autobeamDeflection} mm)` : ''}`]
-                .filter(Boolean)
-                .join('\n');
+              const lintel = framingText(o, calc);
               const checks = [...calc.issues, ...calc.deflection];
               return [
                 o.label,
@@ -191,7 +249,7 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
                 calc.stud ? `${calc.stud.height}×${calc.stud.width}` : '—',
                 o.headHeight,
                 pos,
-                pdfText(lintel || (calc.lintelNeeded ? 'Needed' : '—')),
+                pdfText(lintel || '—'),
                 {
                   text: pdfText(checks.map((c) => c.message).join('\n') || 'OK'),
                   color: checks.some((c) => c.level === 'block') ? C.block : checks.some((c) => c.level === 'warn') ? C.warn : C.ok,
@@ -241,6 +299,37 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
     fontSize: 9,
   });
 
+  // Checker focus (#24)
+  const points = focusPointsFor(data);
+  body.push({ text: `Checker focus (${points.filter((p) => data.review.focusChecks[p.id]).length}/${points.length} verified)`, style: 'h2' });
+  body.push({
+    table: {
+      headerRows: 1,
+      dontBreakRows: true,
+      widths: [120, '*', 80],
+      body: [
+        ['Point', 'What was entered', 'Verified'].map((t) => ({ text: t, style: 'th' })),
+        ...points.map((p) => {
+          const info = p.info(content, data);
+          const v = data.review.focusChecks[p.id];
+          return [
+            { text: pdfText(p.title), bold: true },
+            {
+              stack: [
+                { text: pdfText(info.lines.join('\n')) },
+                ...(info.warnings.length ? [{ text: pdfText(info.warnings.map((w) => `! ${w}`).join('\n')), color: C.warn } as Content] : []),
+              ],
+            },
+            v ? { text: `Yes — ${v.by}`, color: C.ok } : { text: mode === 'draft' ? '[  ]' : 'No', color: C.muted },
+          ];
+        }),
+      ],
+    },
+    layout: 'lightHorizontalLines',
+    fontSize: 7.5,
+    margin: [0, 0, 0, 10],
+  });
+
   // Sign-off
   body.push({ text: 'Review and sign-off', style: 'h2' });
   body.push({
@@ -261,6 +350,24 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
     body.push({ text: 'Checker signature: ______________________________     Date: ______________', margin: [0, 16, 0, 0] });
   }
 
+  // Pictures attached by the detailer (bracing screenshots, beam pockets…)
+  const itemPictures = visibleItems(content, data.job).flatMap((item) =>
+    (item.fields ?? [])
+      .filter((f) => f.kind === 'photos' && isFieldVisible(f, itemState(data, item.id)))
+      .map((f) => ({ item, field: f, ids: listValue(itemState(data, item.id).values[f.id]) }))
+      .filter((x) => x.ids.length > 0),
+  );
+  if (itemPictures.length) {
+    body.push({ text: 'Appendix — pictures from the checklist', style: 'h2', pageBreak: 'before' });
+    for (const { item, field, ids } of itemPictures) {
+      body.push({ text: pdfText(`${item.title} — ${field.label}`), bold: true, margin: [0, 6, 0, 4] });
+      for (const pid of ids) {
+        const p = photos.find((x) => x.id === pid);
+        if (p) body.push({ image: p.dataUrl, fit: [500, 320], margin: [0, 0, 0, 6] });
+      }
+    }
+  }
+
   // Photos appendix
   const withPhotos = data.review.entries.filter((e) => e.photoIds.length > 0);
   if (withPhotos.length) {
@@ -278,7 +385,7 @@ export function buildDocDefinition(content: ChecklistContent, data: JobData, pho
   return {
     pageSize: 'A4',
     pageMargins: [32, 36, 32, 40],
-    info: { title: `${data.job.jobNo} ${floor} — ${mode === 'draft' ? 'Draft' : 'Final'} checklist`, author: 'Lawmans Smart Checklist' },
+    info: { title: `${data.job.jobNo} ${floor} — ${mode === 'draft' ? 'Draft' : 'Final'} checklist`, author: 'Smart Check Wall' },
     watermark: mode === 'draft' ? { text: 'DRAFT', color: C.block, opacity: 0.08, bold: true } : undefined,
     defaultStyle: { font: 'Roboto', fontSize: 9, color: C.charcoal, lineHeight: 1.15 },
     styles: {
@@ -319,7 +426,7 @@ export async function generatePdf(content: ChecklistContent, data: JobData, phot
   const pdfMake = (pdfMakeMod as unknown as { default: typeof import('pdfmake/build/pdfmake') }).default ?? pdfMakeMod;
   const vfs = (vfsMod as unknown as { default: Record<string, string> }).default ?? vfsMod;
   pdfMake.addVirtualFileSystem(vfs);
-  const logo = await fetchDataUrl('/logos/lawmans.png');
-  const doc = buildDocDefinition(content, data, photos, mode, logo);
+  const [mitek, lawmans] = await Promise.all([fetchDataUrl('/logos/mitek.png'), fetchDataUrl('/logos/lawmans.png')]);
+  const doc = buildDocDefinition(content, data, photos, mode, { mitek, lawmans });
   return pdfMake.createPdf(doc).getBlob();
 }
